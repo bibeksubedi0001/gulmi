@@ -323,6 +323,7 @@ svg.chart .b-work { fill: var(--s3); } svg.chart .b-eq { fill: var(--bad); } svg
 .toc a { font-size: .95rem; padding: 6px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-decoration: none; }
 .toc a:hover { background: var(--brand-l); }
 .guide-sec { scroll-margin-top: 12px; }
+.guide-sec .tbl-scroll { margin-bottom: 12px; }
 .guide-tbl td { vertical-align: top; font-size: .95rem; }
 .form-link { display: inline-block; font: 700 .82rem var(--font); border: 1px solid var(--brand-line); background: var(--brand-l); padding: 0 5px; margin: 1px; text-decoration: none; }
 .refs li { margin-bottom: 6px; font-size: .92rem; }

@@ -98,7 +98,7 @@
 
   /* ---------- water level ---------- */
   reg({
-    id: 'wl', short: 'WL', icon: 'wave', target: 3, targetLabel: 'readings',
+    id: 'wl', short: 'WL', icon: 'wave', target: 4, targetLabel: 'readings',
     title: { en: 'Water-level reading' },
     summary: (v) => [v.gauge, n(v.reading) != null ? fx(n(v.reading)) + ' m' : '', TT.fmt(v.dt)].filter(Boolean).join(' · '),
     sections: [

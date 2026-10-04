@@ -8,7 +8,7 @@
   // Chhekmi's centre is not in any inventory or map; the team sets it by GPS on its field day (Data page).
   TT.LAKES = {
     timure: { id: 'timure', code: 'TT', ne: 'टिमुरे ताल', en: 'Timure Taal', lat: 28.10051389, lon: 83.37936389, place: 'Chandrakot RM-4, Remi, Gulmi' },
-    chhekmi: { id: 'chhekmi', code: 'CK', ne: 'छेक्मी ताल', en: 'Chhekmi Taal', lat: null, lon: null, place: 'Gulmi — centre to be fixed by GPS on site' },
+    chhekmi: { id: 'chhekmi', code: 'CK', ne: 'छेक्मी ताल', en: 'Chhekmi Taal', lat: null, lon: null, place: 'Chekmi, Resunga-6, Gulmi' },
   };
   TT.LAKE_IDS = Object.keys(TT.LAKES);
   TT.lakeName = (id, lang = 'en') => (TT.LAKES[id] ? TT.Ls(TT.LAKES[id], lang) : id === 'both' ? 'Both lakes' : '');
