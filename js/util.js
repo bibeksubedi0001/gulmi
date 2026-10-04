@@ -3,7 +3,7 @@
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.0.0';
+  TT.VERSION = '1.0.1';
   TT.APP = 'timure-taal-portal';
 
   TT.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
