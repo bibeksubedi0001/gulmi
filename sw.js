@@ -1,7 +1,7 @@
 /* Lakes field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.1.0';
+const VERSION = 'timure-portal-v1.2.0';
 const ASSETS = [
-  './', 'index.html', 'manifest.webmanifest', 'css/app.css',
+  './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/theme.js',
   'js/util.js', 'js/geo.js', 'js/db.js', 'js/schema-common.js', 'js/engine.js', 'js/forms-community.js',
   'js/forms-engineering.js', 'js/exporter.js', 'js/dashboard.js', 'js/guide.js', 'js/app.js',
   'vendor/xlsx.mini.min.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',

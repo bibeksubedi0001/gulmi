@@ -357,7 +357,7 @@
           v.alt != null && h('span', { text: `GPS alt ${Math.round(v.alt)} m` }),
           u && h('span', { text: `UTM 44N  E ${u.e.toFixed(1)}  N ${u.n.toFixed(1)}` }),
           ctr ? h('span', { text: `${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(2) + ' km'} ${TT.compass8(TT.bearing(ctr, v))} of ${TT.lakeName(io.vals.lake)} centre` })
-            : io.vals.lake && h('span', { text: 'lake centre not set yet (Data page)' }),
+            : io.vals.lake && h('span', { text: 'lake centre not set' }),
           v.n > 1 && h('span', { text: `${v.n} fixes${v.averaged ? ' averaged' : ''}` }),
           v.src === 'manual' && h('span', { text: 'entered manually' })].filter(Boolean));
       } else out.replaceChildren(h('span.muted', { text: 'No position yet' }));
@@ -583,8 +583,7 @@
       };
       const wrap = h('div.q', { id: 'q-' + f.id, dataset: { type: f.type } });
       if (f.type === 'info') { wrap.append(R.info(io).el); return { f, wrap }; }
-      wrap.append(h('div.q-head', h('span.q-num', { text: f.num }), h('div.q-label', f.required && h('span.req', { title: 'Required', text: '* ' }), L(f.q)),
-        f.ref && h('span.q-ref', { text: 'R' + f.ref, title: 'Question number in the field study report' })));
+      wrap.append(h('div.q-head', h('span.q-num', { text: f.num }), h('div.q-label', f.required && h('span.req', { title: 'Required', text: '* ' }), L(f.q))));
       if (f.hint) wrap.append(h('div.q-hint', L(f.hint)));
       const ctl = (R[f.type] || R.text)(io);
       wrap.append(ctl.el);
@@ -657,10 +656,11 @@
     api.destroy = () => items.forEach((it) => it.ctl && it.ctl.destroy && it.ctl.destroy());
 
     host.replaceChildren();
+    const single = form.sections.length === 1;
     for (const sec of form.sections) {
       const prog = h('span.sec-prog');
       const el = h('section.fsec', { id: 'sec-' + sec.id },
-        h('header.fsec-h', h('span.sec-id', { text: sec.id }), h('h2', L(sec.title)), prog),
+        !single && h('header.fsec-h', h('span.sec-id', { text: sec.id }), h('h2', L(sec.title)), prog),
         sec.intro && h('p.fsec-intro', L(sec.intro)),
         sec.note && h('div.callout', icon('info'), h('div', L(sec.note))));
       secs.push({ sec, el, prog });
@@ -719,7 +719,7 @@
     const v = vals[f.id];
     const when = !filled ? TT.whenText(form, f) : '';
     const q = h('div.p-q');
-    q.append(h('div.p-ql', h('b', `${f.num}. `), L(f.q), f.ref && h('span.p-when', ` [R${f.ref}]`), when && h('em.p-when', ` → ${when}`)));
+    q.append(h('div.p-ql', h('b', `${f.num}. `), L(f.q), when && h('em.p-when', ` → ${when}`)));
     if (f.hint) q.append(h('div.p-hint', L(f.hint)));
     switch (f.type) {
       case 'radio': case 'select': case 'yn': case 'scale': case 'checks': case 'months': case 'person': case 'people': {
@@ -757,10 +757,9 @@
       h('div.p-meta', filled
         ? `Record ${rec.id} · ${rec.status} · created ${TT.fmt(rec.created)} · updated ${TT.fmt(rec.updated)}${rec.enumerator ? ' · ' + rec.enumerator : ''}`
         : `Form ${form.short} v${form.version} · Record no. ____________ · Enumerator ____________ · Date ____ / ____ / ______ · Start ____:____ End ____:____`)));
-    if (form.purpose) doc.append(h('p.p-intro', L(form.purpose)));
     for (const sec of form.sections) {
       if (filled && sec.showIf && !safe(sec.showIf, vals)) continue;
-      const s = h('section.p-sec', h('h2', `${sec.id}. `, L(sec.title), !filled && sec._dep ? h('em.p-when', ` → ${TT.whenText(form, sec)}`) : null));
+      const s = h('section.p-sec', form.sections.length > 1 && h('h2', `${sec.id}. `, L(sec.title), !filled && sec._dep ? h('em.p-when', ` → ${TT.whenText(form, sec)}`) : null));
       if (sec.intro) s.append(h('p.p-intro', L(sec.intro)));
       if (sec.note) s.append(h('p.p-note', L(sec.note)));
       for (const f of sec.fields) {

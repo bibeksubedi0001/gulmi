@@ -1,9 +1,9 @@
-/* Timure Taal field portal: shared helpers (no dependencies). */
+/* Lakes field portal: shared helpers (no dependencies). */
 'use strict';
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.1.0';
+  TT.VERSION = '1.2.0';
   TT.APP = 'timure-taal-portal';
 
   TT.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -96,6 +96,7 @@
     grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
     wall: 'M2 6h20v12H2zM2 12h20M8 6v6M16 6v6M12 12v6',
     sun: C(12, 12, 4) + 'M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
+    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
     refresh: 'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15',
     note: 'M4 4h16v12H8l-4 4zM8 8h8M8 12h5',
     crosshair: C(12, 12, 10) + 'M22 12h-4M6 12H2M12 6V2M12 22v-4',

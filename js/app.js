@@ -30,6 +30,20 @@
       if (!S.open) route();
     });
     document.getElementById('lakesel').replaceChildren(h('span.lake-lbl', { text: 'Lake' }), sel);
+    const themeBtn = document.getElementById('theme');
+    const paintTheme = () => {
+      const dark = document.documentElement.dataset.theme === 'dark';
+      themeBtn.replaceChildren(icon(dark ? 'sun' : 'moon'));
+      themeBtn.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
+      themeBtn.setAttribute('aria-pressed', String(dark));
+    };
+    themeBtn.addEventListener('click', () => {
+      const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+      try { localStorage.setItem('tt-theme', t); } catch (e) { /* storage blocked: theme lasts for this page only */ }
+      paintTheme();
+    });
+    paintTheme();
   }
   const markNav = (p) => document.querySelectorAll('.nav-a').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
 
@@ -126,33 +140,25 @@
     const stale = all.length && (!last || Date.now() - last > 24 * 3600 * 1000);
     const lakeRow = (id) => {
       const c = TT.lakeCentre(id);
-      const n = forLake(all, id).filter((r) => lakeOf(r) === id).length;
-      return h('tr', h('td', h('b', { text: TT.lakeName(id) })), h('td', { text: TT.LAKES[id].place }),
-        h('td', { text: c ? `${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}` : 'set on arrival (Data page)' }), h('td', { text: String(n) }));
+      return h('tr', h('td', h('b', { text: TT.lakeName(id) })), h('td', { text: c ? `${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}` : 'Not set' }),
+        h('td', { text: String(all.filter((r) => lakeOf(r) === id).length) }));
     };
     root.replaceChildren(
-      h('section.hero',
-        h('p.eyebrow', { text: 'Preliminary engineering investigation · Gulmi' }),
-        h('h1', { text: 'Timure & Chhekmi lakes field portal' }),
-        h('p.lead', { text: 'One field day at each lake: water level and depth, inflows, outlet, lining and seepage, soils, and short interviews with residents. Works offline.' }),
-        h('p.lead', { text: `Active lake: ${activeName()} — change it in the header before starting each lake.` })),
-      h('section.card', h('h3', { text: 'Lakes' }),
-        h('div.tbl-scroll', h('table.tbl.compact', h('thead', h('tr', ...['Lake', 'Place', 'Centre', 'Records'].map((x) => h('th', { text: x })))),
-          h('tbody', ...TT.LAKE_IDS.map(lakeRow))))),
+      h('section.hero', h('h1', { text: 'Timure & Chhekmi lakes' }), h('p', { text: `Active lake: ${activeName()}` })),
       h('div.big-cards',
-        h('a.big-card.com', { href: '#/community' }, icon('users'), h('div', h('h2', { text: 'Community' }),
-          h('p', { text: 'Household interview (about 20 minutes) and key-informant interview.' }))),
-        h('a.big-card.eng', { href: '#/engineering' }, icon('tool'), h('div', h('h2', { text: 'Engineering' }),
-          h('p', { text: 'Field day checklist, benchmark and gauge, water level, depth transects, site features, soils, infiltration, flows and cause ranking.' })))),
+        h('a.big-card.com', { href: '#/community' }, icon('users'), h('h2', { text: 'Community' })),
+        h('a.big-card.eng', { href: '#/engineering' }, icon('tool'), h('h2', { text: 'Engineering' }))),
       h('section.card', h('h3', { text: 'Quick start' }),
         h('div.quick', ...[['day', 'calendar', 'Field day checklist'], ['wl', 'wave', 'Read lake level'], ['feat', 'pin', 'Log a feature'],
           ['bath', 'anchor', 'Depth transect'], ['soil', 'layers', 'Soil sample'], ['hh', 'users', 'Household interview']]
           .map(([id, ic, label]) => h('a.quick-a', { href: '#/new/' + id }, icon(ic), h('span', { text: label }))))),
+      h('section.card', h('h3', { text: 'Lakes' }),
+        h('div.tbl-scroll', h('table.tbl.compact', h('thead', h('tr', ...['Lake', 'Centre', 'Records'].map((x) => h('th', { text: x })))),
+          h('tbody', ...TT.LAKE_IDS.map(lakeRow))))),
       h('section.card.status' + (stale ? '.warn' : ''),
-        h('h3', { text: 'Data on this device' }),
-        h('p', { text: `${all.length} records (${drafts} draft) · device ${S.device}${S.settings.enumerator ? ' · ' + S.settings.enumerator : ''}` }),
-        h('p', { text: last ? `Last field package exported ${TT.fmt(last.toISOString())}.` : 'No field package exported yet from this device.' }),
-        stale ? h('p.warn-t', icon('alert'), h('span', { text: 'Export a field package today and copy it off the phone.' })) : null,
+        h('h3', { text: 'This device' }),
+        h('p', { text: `${all.length} records · ${drafts} drafts · last export ${last ? TT.fmt(last.toISOString()) : 'never'}` }),
+        stale ? h('p.warn-t', icon('alert'), h('span', { text: 'Not exported in the last 24 hours' })) : null,
         h('div.btn-row',
           h('button.btn', { type: 'button', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { const r = await TT.exportPackage(); TT.toast(`Package saved: ${r.records} records, ${r.photos} photos`); route(); } catch (err) { TT.toast('Export failed: ' + err.message, 'bad'); } b.disabled = false; } }, icon('download'), 'Export field package'),
           !S.settings.enumerator ? h('a.btn.ghost', { href: '#/data' }, icon('edit'), 'Choose enumerator') : null,
@@ -166,29 +172,17 @@
     return h('article.form-card',
       h('div.fc-top', icon(f.icon || 'file'), h('span.fc-short', { text: f.short }), h('span.fc-count', { text: `${done}/${f.target || '—'} ${f.targetLabel || ''}` })),
       h('h3', L(f.title)),
-      f.purpose && h('p.fc-purpose', L(f.purpose)),
       h('div.btn-row',
         h('a.btn', { href: '#/new/' + f.id }, icon('plus'), 'New'),
         h('a.btn.ghost', { href: '#/records?form=' + f.id }, icon('list'), `Records (${recs.length})`),
-        h('a.btn.ghost', { href: '#/print/' + f.id, title: 'Blank printable form' }, icon('printer'), 'Print')));
+        h('a.icon-btn', { href: '#/print/' + f.id, title: 'Print blank form', 'aria-label': 'Print blank form' }, icon('printer'))));
   }
 
   async function hubView(root, group) {
     const all = await TT.db.all('records');
     const forms = TT.FORM_ORDER.map((id) => TT.FORMS[id]).filter((f) => f.group === group);
-    const head = (title, text) => h('div.page-head', h('h1', { text: title }), h('p.muted', { text }));
-    if (group === 'community') {
-      const hh = forLake(all, S.settings.activeLake).filter((r) => r.form === 'hh');
-      root.replaceChildren(
-        head('Community', `${activeName()}: counts below are for this lake.`),
-        h('div.callout', icon('info'), h('div', { text: `${hh.length} household interviews · ${hh.filter((r) => r.data.gender === 'f').length} women · ${hh.filter((r) => TT.num(r.data.years_here) >= 15).length} living here 15+ years. Aim for 8 per lake, including women and long-term residents.` })),
-        h('div.cards', ...forms.map((f) => formCard(f, all))));
-      return;
-    }
-    root.replaceChildren(
-      head('Engineering', `${activeName()}: counts below are for this lake. Targets are for one field day.`),
-      ...TT.PHASES.map((ph) => h('section.phase', h('h2', { text: ph.en }, h('small', { text: ' · ' + ph.note })),
-        h('div.cards', ...forms.filter((f) => f.phase === ph.id).map((f) => formCard(f, all))))));
+    const head = h('div.page-head', h('h1', { text: group === 'community' ? 'Community ' : 'Engineering ' }, h('span.lake-tag', { text: activeName() })));
+    root.replaceChildren(head, h('div.cards', ...forms.map((f) => formCard(f, all))));
   }
 
   /* ---------------- form ---------------- */
@@ -263,7 +257,6 @@
             h('button.icon-btn', { type: 'button', title: 'Delete record', onclick: del }, icon('trash')))),
         h('div.fh-prog', h('div.prog-bar', pbar), pct),
         secNav),
-      form.purpose ? h('p.form-purpose', L(form.purpose)) : '',
       h('div.form-body'),
       h('div.form-foot',
         h('button.btn.ghost', { type: 'button', onclick: async () => { o.dirty = false; await saveRecord(o); TT.toast('Draft saved'); } }, icon('save'), 'Save draft'),
@@ -391,7 +384,7 @@
 
     const centreRow = (id) => {
       const c = TT.lakeCentre(id);
-      const out = h('span', { text: c ? `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}${c.custom ? ` (set ${TT.fmt(c.t)}${c.acc ? `, ±${Math.round(c.acc)} m` : ''})` : ' (report coordinate)'}` : 'not set' });
+      const out = h('span', { text: c ? `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}${c.custom && c.acc ? ` (±${Math.round(c.acc)} m)` : ''}` : 'Not set' });
       const setBtn = h('button.btn.sm', { type: 'button', onclick: (e) => {
         const b = e.currentTarget;
         b.disabled = true;
@@ -412,10 +405,10 @@
       h('div.page-head', h('h1', { text: 'Data & settings' })),
       h('section.card',
         h('h3', { text: 'Team' }),
-        h('label.lbl', { text: 'This phone’s enumerator (pre-fills every form)' }), fEnum,
+        h('label.lbl', { text: 'Enumerator on this phone' }), fEnum,
         h('label.lbl', { text: 'Team working today' }), h('div.opts.many', ...TT.TEAM.map((n, i) => h('label.opt', teamBoxes[i], h('span', { text: n })))),
-        h('label.lbl', { text: 'Assumed open-water evaporation for level screening (mm/day)' }), fEvap,
-        h('label.lbl', { text: 'Tolerance before a fall is flagged (mm/day)' }), fTol,
+        h('label.lbl', { text: 'Evaporation (mm/day)' }), fEvap,
+        h('label.lbl', { text: 'Flag tolerance (mm/day)' }), fTol,
         h('div.btn-row', h('button.btn', { type: 'button', onclick: async () => {
           st.enumerator = fEnum.value;
           st.team = teamBoxes.filter((b) => b.checked).map((b) => b.value);
@@ -426,21 +419,18 @@
         } }, icon('save'), 'Save settings'))),
       h('section.card',
         h('h3', { text: 'Lake centres' }),
-        h('p.muted', { text: 'Stand at the lake edge nearest the centre (or on a boat at the centre) and set it. Used for “distance from lake” on GPS points and on the map.' }),
         ...TT.LAKE_IDS.map(centreRow)),
       h('section.card',
         h('h3', { text: 'Export' }),
-        h('p.muted', { text: 'Field package = everything (records, photos, Excel, GIS) for backup and merging. It contains personal data; share only within the team.' }),
         h('div.btn-row',
           h('button.btn', { type: 'button', onclick: busy(async () => { const r = await TT.exportPackage(); TT.toast(`Package: ${r.records} records, ${r.photos} photos`); }) }, icon('archive'), 'Field package (.zip)')),
-        h('label.check', pii, h('span', { text: ' Include names and phone numbers in Excel / GIS exports' })),
+        h('label.check', pii, h('span', { text: 'Include names and phone numbers' })),
         h('div.btn-row',
           h('button.btn.ghost', { type: 'button', onclick: busy(async () => { const n = await TT.exportXlsx({ pii: pii.checked }); TT.toast(`Excel: ${n} records`); }) }, icon('download'), 'Excel (.xlsx)'),
           h('button.btn.ghost', { type: 'button', onclick: busy(async () => { const n = await TT.exportGeo('geojson', { pii: pii.checked }); TT.toast(`GeoJSON: ${n} features`); }) }, icon('map'), 'GeoJSON (QGIS)'),
           h('button.btn.ghost', { type: 'button', onclick: busy(async () => { const n = await TT.exportGeo('kml', { pii: pii.checked }); TT.toast(`KML: ${n} features`); }) }, icon('map'), 'KML (Google Earth)'))),
       h('section.card',
         h('h3', { text: 'Import & merge' }),
-        h('p.muted', { text: 'Import field packages (.zip) from the other phones. New records are added, newer edits replace older ones, identical ones are skipped.' }),
         fileIn,
         h('div.btn-row', h('button.btn', { type: 'button', onclick: () => fileIn.click() }, icon('upload'), 'Choose file to import'))),
       h('section.card',
@@ -453,7 +443,6 @@
         h('div.kv', h('span', { text: 'App version' }), h('b', { text: TT.VERSION }))),
       h('section.card.danger-zone',
         h('h3', { text: 'Danger zone' }),
-        h('p.muted', { text: 'Deletes every record and photo on this device. Export a package first.' }),
         h('button.btn.danger', { type: 'button', onclick: async () => {
           if (!(await TT.confirm('Delete ALL records and photos on this device?', { ok: 'Continue', danger: true }))) return;
           if (prompt('Type DELETE to confirm') !== 'DELETE') { TT.toast('Cancelled'); return; }

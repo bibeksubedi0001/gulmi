@@ -107,8 +107,8 @@
     });
     series.forEach((se) => {
       const pts = [...se.pts].sort((a, b) => a.x - b.x);
-      if (pts.length > 1) g.append(s('polyline', { points: pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(' '), fill: 'none', stroke: se.color, 'stroke-width': 2.2, 'stroke-dasharray': se.dash || null }));
-      pts.forEach((p) => g.append(s('rect', { x: X(p.x) - 3.5, y: Y(p.y) - 3.5, width: 7, height: 7, fill: p.color || se.color }, s('title', {}, p.title || `${xFmt(p.x)}: ${yFmt(p.y)}`))));
+      if (pts.length > 1) g.append(s('polyline', { points: pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(' '), fill: 'none', style: `stroke:${se.color}`, 'stroke-width': 2.2, 'stroke-dasharray': se.dash || null }));
+      pts.forEach((p) => g.append(s('rect', { x: X(p.x) - 3.5, y: Y(p.y) - 3.5, width: 7, height: 7, style: `fill:${p.color || se.color}` }, s('title', {}, p.title || `${xFmt(p.x)}: ${yFmt(p.y)}`))));
     });
     return h('div.chart-wrap', g, h('div.legend', ...series.map((se) => h('span', h('i', { style: { background: se.color } }), se.name))));
   }
@@ -199,7 +199,6 @@
     const fit = [...near, ...(lake === 'all' ? centres : centres.filter(([id]) => id === lake)).map(([, c]) => [c.lat, c.lon])];
     if (fit.length > 1) map.fitBounds(L_.latLngBounds(fit).pad(0.15), { maxZoom: 18 });
     setTimeout(() => map.invalidateSize(), 50);
-    return { total: feats.length, far: feats.filter((f) => f.geometry.type === 'Point').length - near.length };
   }
 
   /* ============================ dashboard view ============================ */
@@ -215,7 +214,7 @@
     pick.value = lake;
     pick.addEventListener('change', () => TT.renderDashboard(root, ctx, pick.value));
     root.replaceChildren(h('div.page-head', h('h1', { text: 'Dashboard' }),
-      h('div.btn-row', pick, h('span.muted', { text: `${records.length} records · ${records.filter((r) => r.status === 'complete').length} complete · ${photos.length} photos on this device. Import the other phones’ packages to see the whole team.` }))));
+      h('div.btn-row', pick, h('span.muted', { text: `${records.length} records · ${records.filter((r) => r.status === 'complete').length} complete · ${photos.length} photos` }))));
 
     /* progress */
     const prog = h('div.prog-grid');
@@ -230,68 +229,63 @@
         h('div.prog-bar', h('i', { style: { width: Math.min(100, (100 * done) / target) + '%' } })),
         recs.length > done && h('small.muted', { text: `${recs.length - done} draft` })));
     }
-    root.append(card('Progress against one-day targets', prog));
+    root.append(card('Progress', prog));
 
     /* map */
     const mapEl = h('div.map');
-    const mapNote = h('p.muted.sm');
-    root.append(card('Map', mapEl, mapNote));
-    buildMap(mapEl, records, lake).then((r) => {
-      mapNote.textContent = `${r.total} features.${r.far > 0 ? ` ${r.far} point(s) more than 5 km from a lake centre are not used for zooming.` : ''} Satellite tiles need a connection.${TT.lakeCentre('chhekmi') ? '' : ' Chhekmi centre not set yet (Data page).'}`;
-    }).catch((e) => { mapNote.textContent = 'Map unavailable: ' + e.message; });
+    root.append(card('Map', mapEl));
+    buildMap(mapEl, records, lake).catch((e) => mapEl.replaceChildren(h('p.muted', { text: 'Map unavailable: ' + e.message })));
 
     /* water level */
     const wl = TT.analysis.waterLevel(records, { ...ctx, records: recordsAll });
     const wlCard = card('Water level');
-    if (!wl.length) wlCard.append(h('p.muted', { text: 'No readings yet. Level a staff gauge (Benchmark form), then read it morning, midday and evening.' }));
+    if (!wl.length) wlCard.append(h('p.muted', { text: 'No readings yet.' }));
     else {
       const gauges = [...new Set(wl.map((p) => p.gauge))];
-      const pal = ['#0f5563', '#b5651d', '#5b3a85', '#2f5f8a'];
+      const pal = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)'];
       const useRL = wl.every((p) => p.wsl != null);
       wlCard.append(chart({
         series: gauges.map((g, i) => ({ name: g + (useRL ? ' (RL m)' : ' (staff m)'), color: pal[i % pal.length],
-          pts: wl.filter((p) => p.gauge === g).map((p) => ({ x: +p.t, y: useRL ? p.wsl : p.reading, color: p.flag && p.flag.startsWith('Fall') ? '#a3221a' : null, title: `${p.id} ${TT.fmt(p.t)}: ${useRL ? p.wsl : p.reading} m` })) })),
+          pts: wl.filter((p) => p.gauge === g).map((p) => ({ x: +p.t, y: useRL ? p.wsl : p.reading, color: p.flag && p.flag.startsWith('Fall') ? 'var(--bad)' : null, title: `${p.id} ${TT.fmt(p.t)}: ${useRL ? p.wsl : p.reading} m` })) })),
         xFmt: (x) => { const d = new Date(x); return `${d.getMonth() + 1}/${d.getDate()} ${TT.pad(d.getHours())}h`; }, yFmt: (y) => y.toFixed(3),
       }));
       const head = h('thead', h('tr', ...['Reading', 'Gauge', 'Time', 'Staff m', 'RL m', 'Δt h', 'Fall mm/d', 'Rain', 'Screening'].map((x) => h('th', { text: x }))));
       const body = h('tbody', ...wl.slice(-40).reverse().map((p) => h('tr' + (p.flag && p.flag.startsWith('Fall') ? '.flag' : ''),
         h('td', h('a', { href: '#/edit/' + p.id, text: p.id })), h('td', { text: p.gauge }), h('td', { text: TT.fmt(p.t) }), h('td', { text: p.reading.toFixed(3) }),
         h('td', { text: p.wsl != null ? p.wsl.toFixed(3) : '' }), h('td', { text: p.dtH ?? '' }), h('td', { text: p.rate ?? '' }), h('td', { text: p.rain }), h('td', { text: p.flag || '' }))));
-      wlCard.append(h('p.muted.sm', { text: `Falls between readings at least 6 h apart are compared with evaporation ${ctx.settings.evap} mm/day + ${ctx.settings.evapTol} mm/day (Data page). Red = unexplained fall.` }),
-        h('div.tbl-scroll', h('table.tbl.compact', head, body)));
+      wlCard.append(h('div.tbl-scroll', h('table.tbl.compact', head, body)));
     }
     root.append(wlCard);
 
     /* community */
     const c = TT.analysis.community(records);
     const com = card('Community evidence');
-    if (!c.N) com.append(h('p.muted', { text: 'No household interviews with consent yet.' }));
+    if (!c.N) com.append(h('p.muted', { text: 'No interviews yet.' }));
     else {
       const ys = [...c.years.keys()];
-      com.append(h('p', { text: `${c.N} interviews; ${[...c.years.values()].reduce((a, b) => a + b, 0)} gave the year they first noticed the decline.` }));
+      com.append(h('p', { text: `${c.N} interviews · ${[...c.years.values()].reduce((a, b) => a + b, 0)} dated the decline` }));
       if (ys.length) {
-        com.append(h('h4', { text: 'Year the decline was first noticed (BS; 2072 = 2015 earthquake highlighted)' }),
+        com.append(h('h4', { text: 'Year decline first noticed (BS)' }),
           yearHist(c.years, { from: Math.min(2062, ...ys), to: Math.max(TT.bsYearOf(), ...ys) }),
-          h('p.muted.sm', { text: 'How they know: ' + [...c.srcFirst.entries()].map(([k, v]) => `${k === 'untagged' ? 'not tagged' : TT.optLabel({ options: TT.O.src }, k)} ${v}`).join(' · ') }));
+          h('p.muted.sm', { text: 'Source: ' + [...c.srcFirst.entries()].map(([k, v]) => `${k === 'untagged' ? 'not tagged' : TT.optLabel({ options: TT.O.src }, k)} ${v}`).join(' · ') }));
       }
       const pLabels = { pre: 'Before 2072', mid: '2072–2079', now: 'Last two years' };
       const per = Object.keys(pLabels).filter((k) => c.periods[k]).map((k) => ({ label: { en: pLabels[k] }, n: TT.mean(c.periods[k]), count: c.periods[k].length }));
-      if (per.length) com.append(h('h4', { text: 'Dry-season water level by period (mean; 5 = full, 1 = dry)' }), bars(per, { fmt: (i) => `${i.n.toFixed(1)} (n=${i.count})` }));
+      if (per.length) com.append(h('h4', { text: 'Dry-season level (5 full – 1 dry)' }), bars(per, { fmt: (i) => `${i.n.toFixed(1)} (n=${i.count})` }));
       const grid2 = h('div.grid2');
       const sub = (title, d) => h('div', h('h4', { text: title }), d.items.length ? bars(d.items.map((x) => ({ label: x.o, n: x.n })), { total: d.base }) : h('p.muted', { text: 'No answers yet.' }));
-      grid2.append(sub('Change after the 2072 earthquake', c.eq), sub('Pattern of decline', c.pattern), sub('Other village springs / taps declined? (climate test)', c.others),
-        sub('Water level after the concrete work', c.conAfter), sub('Old inflow path blocked?', c.pathClosed), sub('Wet ground / seepage below the lake?', c.downWet),
+      grid2.append(sub('After the 2072 earthquake', c.eq), sub('Pattern of decline', c.pattern), sub('Other springs / taps declined', c.others),
+        sub('After the concrete work', c.conAfter), sub('Old inflow path blocked', c.pathClosed), sub('Seepage below the lake', c.downWet),
         sub('Outlet / overflow', c.outlet), sub('Buffalo wallowing', c.wallow));
       com.append(grid2);
       const causeItems = TT.O.causes.map((o) => ({ label: o, n: c.borda.get(o.v) || 0 })).filter((x) => x.n).sort((a, b) => b.n - a.n);
-      com.append(h('h4', { text: 'Perceived causes — rank score (1st = 3, 2nd = 2, 3rd = 1)' }), causeItems.length ? bars(causeItems) : h('p.muted', { text: 'No rankings yet.' }),
-        h('p.muted.sm', { text: 'What people observed and believe is weighed against the measurements in the hypothesis matrix; it is not proof by itself.' }));
+      com.append(h('h4', { text: 'Perceived causes (rank score)' }), causeItems.length ? bars(causeItems) : h('p.muted', { text: 'No rankings yet.' }));
     }
     root.append(com);
 
-    root.append(card('Timeline: decline vs works and events', timeline(records, c)));
+    root.append(card('Timeline', timeline(records, c)));
     root.append(card('Engineering summary', engSummary(records, lakes)));
-    root.append(card('Cause ranking (latest hypothesis matrix)', hypSummary(records)));
+    root.append(card('Cause ranking', hypSummary(records)));
   };
 
   function timeline(records, c) {
@@ -301,16 +295,16 @@
     const yrs = [...c.years.keys(), ...works.keys(), ...hhCon.keys(), 2072];
     const from = Math.min(2062, ...yrs), to = Math.max(TT.bsYearOf(), ...yrs);
     const lanes = [
-      ['First noticed the decline (HH)', c.years, 'b-com', 'respondent(s) first noticed the decline'],
-      ['Year of concrete work (HH)', hhCon, 'b-con', 'respondent(s) dated the concrete work'],
-      ['Works listed by key informants', works, 'b-work', 'work(s) listed'],
+      ['Decline first noticed', c.years, 'b-com', 'respondent(s) first noticed the decline'],
+      ['Concrete work (HH)', hhCon, 'b-con', 'respondent(s) dated the concrete work'],
+      ['Works (KII)', works, 'b-work', 'work(s) listed'],
     ];
-    const W = 720, rowH = 48, m = { l: 178, r: 10, t: 8 };
+    const W = 720, rowH = 48, m = { l: 150, r: 10, t: 8 };
     const H = m.t + (lanes.length + 1) * rowH + 22;
     const cw = (W - m.l - m.r) / (to - from + 1);
     const X = (y) => m.l + (y - from) * cw;
     const g = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart timeline', role: 'img' });
-    [...lanes.map((l) => l[0]), 'Events (listed below)'].forEach((ln, i) => g.append(
+    [...lanes.map((l) => l[0]), 'Events'].forEach((ln, i) => g.append(
       s('text', { x: 4, y: m.t + i * rowH + rowH / 2 + 4, class: 'lane' }, ln),
       s('line', { x1: m.l, x2: W - m.r, y1: m.t + (i + 1) * rowH, y2: m.t + (i + 1) * rowH, class: 'axis' })));
     for (let y = from; y <= to; y++) if ((y - from) % 2 === 0) g.append(s('text', { x: X(y) + cw / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, y));
@@ -328,8 +322,7 @@
     const events = Object.entries(TT.ANCHORS).filter(([y]) => +y >= from && +y <= to);
     events.forEach(([y, a]) => g.append(s('rect', { x: X(+y) + cw / 2 - 1.5, y: evBase - rowH + 10, width: 3, height: rowH - 14, class: +y === 2072 || +y === 2080 ? 'b-eq' : 'b-ev' }, s('title', {}, `${TT.bsLabel(+y)}: ${a.en}`))));
     return h('div', g,
-      h('p.muted.sm', { text: 'Events: ' + events.map(([y, a]) => `${y} ${a.en}`).join(' · ') }),
-      h('p.muted.sm', { text: 'If the first-noticed peak comes before the concrete-work years, H2 is weakened; if it matches 2072 only in timing, H4 still needs physical evidence.' }));
+      h('p.muted.sm', { text: events.map(([y, a]) => `${y} ${a.en}`).join(' · ') }));
   }
 
   function engSummary(records, lakes) {
@@ -342,7 +335,7 @@
     const inf = by('inf').filter((r) => n(r.data.steady) != null);
     wrap.append(h('div', h('h4', { text: `Infiltration tests (${by('inf').length})` }), inf.length
       ? h('table.tbl.compact', h('tbody', ...inf.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.test_id || r.id })), h('td', { text: TT.lakeCode(r.data.lake) }), h('td', { text: 'zone ' + (r.data.zone || '?') }), h('td', { text: `${n(r.data.steady).toFixed(1)} mm/h` })))))
-      : h('p.muted', { text: 'No completed tests yet.' })));
+      : h('p.muted', { text: 'None yet.' })));
     const bath = by('bath');
     const depths = bath.flatMap((r) => (r.data.soundings || []).map((x) => n(x.depth)).filter((x) => x != null));
     wrap.append(h('div', h('h4', { text: 'Depth' }), kv('Transects', String(bath.length)), kv('Soundings', String(depths.length)),
@@ -350,7 +343,7 @@
     const q = by('q').filter((r) => n(r.data.q_adopt) != null);
     wrap.append(h('div', h('h4', { text: `Flows (${by('q').length})` }), q.length
       ? h('table.tbl.compact', h('tbody', ...q.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.site_id || r.id })), h('td', { text: r.data.stype ? TT.optLabel(TT.FORMS.q.fieldMap.stype, r.data.stype) : '' }), h('td', { text: `${n(r.data.q_adopt).toFixed(3)} L/s` })))))
-      : h('p.muted', { text: 'No flows yet.' })));
+      : h('p.muted', { text: 'None yet.' })));
     const feat = by('feat');
     const ftc = TT.FORMS.feat.fieldMap.ftype.options.map((o) => ({ label: o, n: feat.filter((r) => r.data.ftype === o.v).length })).filter((x) => x.n);
     wrap.append(h('div', h('h4', { text: `Site features (${feat.length})` }), ftc.length ? bars(ftc) : h('p.muted', { text: 'None yet.' })));
@@ -368,7 +361,7 @@
 
   function hypSummary(records) {
     const latest = TT.LAKE_IDS.map((id) => records.filter((r) => r.form === 'hyp' && r.data.lake === id).sort((a, b) => b.updated.localeCompare(a.updated))[0]).filter(Boolean);
-    if (!latest.length) return h('p.muted', { text: 'Not scored yet. Fill the hypothesis matrix at the end of each lake day.' });
+    if (!latest.length) return h('p.muted', { text: 'Not scored yet.' });
     const colours = ['#c9d3d8', '#e9c46a', '#f4a261', '#b5541c'];
     return h('div.grid2', ...latest.map((hm) => h('div',
       h('h4', { text: TT.lakeName(hm.data.lake) }),

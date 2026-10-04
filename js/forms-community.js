@@ -16,7 +16,6 @@
   TT.registerForm({
     id: 'hh', short: 'HH', version: 2, group: 'community', icon: 'users', geo: 'loc', target: 8, targetLabel: 'interviews',
     title: e('Household interview'),
-    purpose: e('About 20 minutes with residents, preferably people living here 15+ years: lake history, when and how the decline happened, water in and out, works, the earthquake and likely causes.'),
     summary: (v) => [v.settlement, v.age ? v.age + ' y' : '', { f: 'F', m: 'M', o: 'O' }[v.gender] || '', v.years_here != null ? v.years_here + ' yrs here' : ''].filter(Boolean).join(' · '),
     sections: [
       { id: 'A', title: e('Interview'), fields: [
@@ -24,7 +23,6 @@
         F('start', 'datetime', 'Date & time', { required: true, now: true }),
         F('loc', 'gps', 'Interview location'),
         F('settlement', 'text', 'Settlement / tole', { suggest: settlements }),
-        F('i_consent', 'info', null, { text: e('Introduce the study: why the lake water is declining; about 20 minutes; voluntary; any question can be skipped; names are not reported.') }),
         F('consent', 'yn', 'Consent given?', { dk: false, required: true }),
       ] },
       { id: 'B', title: e('Respondent'), show: ['consent', 'yes'], fields: [
@@ -36,17 +34,16 @@
           op('committee', 'Committee / local representative'), op('worker', 'Worked on lake construction'), other] }),
       ] },
       { id: 'C', title: e('Lake history and decline'), show: ['consent', 'yes'],
-        note: e('Ask neutrally: do not mention the earthquake, the lining or any other cause before C7. Record years in BS and ask for landmarks.'),
         fields: [
           F('yearround_then', 'select', 'In the past, did the lake keep water through the dry season?', { ref: 7, evidence: true, options: [
             op('full', 'Always stayed full'), op('some', 'Always kept some water'), op('some_years', 'Dried in some years'), op('every_year', 'Dried every year'), dk] }),
           F('old_depth', 'number', 'Past maximum depth (estimate)', { unit: 'm', min: 0, max: 30, ref: 9 }),
-          F('old_shore', 'textarea', 'Where did the old high-water edge reach? (landmark: stone, tree, path, wall)', { ref: 8, evidence: true }),
+          F('old_shore', 'textarea', 'Where did the old high-water edge reach? (landmark)', { ref: 8, evidence: true }),
           F('noticed', 'yn', 'Has the water level been declining?'),
           F('first_noticed', 'bsyear', 'Year the decline was first clearly noticed', { show: ['noticed', 'yes'], evidence: true, to: 2030, ref: 12 }),
           F('pattern', 'select', 'Was the change sudden or gradual?', { show: ['noticed', 'yes'], ref: 13, options: [
             op('sudden', 'Sudden (within a season)'), op('gradual', 'Gradual over years'), op('sudden_then_gradual', 'Sudden, then gradual'), op('fluctuating', 'Up and down'), dk] }),
-          F('own_words', 'textarea', 'In their own words: what changed, and why? (verbatim, before any prompting)', { show: ['noticed', 'yes'] }),
+          F('own_words', 'textarea', 'What changed, and why? (their own words)', { show: ['noticed', 'yes'] }),
           F('levels', 'grid', 'Dry-season water level in each period', { levelColors: true, scale: O.level5,
             cols: [op('dry', 'Dry season (Chaitra–Jestha)')],
             rows: [op('pre', 'Before 2072 BS (2015)'), op('mid', '2072–2079 BS (2015–2022)'), op('now', 'Last two years')] }),
@@ -65,7 +62,6 @@
         F('outlet', 'select', 'Is there an outlet, overflow or drain?', { ref: 38, options: [op('now', 'Yes, now'), op('past', 'Only in the past'), op('never', 'Never'), dk] }),
         F('down_wet', 'yn', 'Is there wet ground, seepage or a spring below the lake?', { ref: 41, evidence: true }),
         F('other_sources', 'select', 'Have other springs or taps in the village also declined?', {
-          hint: e('Separates a regional (climate) cause from a lake-only cause.'),
           options: [op('many', 'Many declined'), op('some', 'Some declined'), op('no', 'Not declined'), dk] }),
       ] },
       { id: 'E', title: e('Works, earthquake and use'), show: ['consent', 'yes'], fields: [
@@ -82,7 +78,7 @@
         F('eq_signs', 'checks', 'Seen after the earthquake', { ref: 19, options: [
           op('cracks', 'Cracks in ground / lake edge'), op('subsidence', 'Ground sinking'), op('landslide', 'Landslide'),
           op('new_spring', 'New spring'), op('spring_dried', 'Spring dried'), op('none', 'Nothing seen'), dk] }),
-        F('wallow', 'select', 'Do buffaloes wallow in the lake?', { hint: e('Wallowing seals the bed; its loss can increase seepage (H7).'), options: [
+        F('wallow', 'select', 'Do buffaloes wallow in the lake?', { options: [
           op('stopped', 'Used to, not any more'), op('still', 'Still do'), op('never', 'Never did'), dk] }),
         F('extraction', 'yn', 'Is water pumped or taken from the lake?', { ref: 56 }),
       ] },
@@ -92,8 +88,8 @@
         F('action', 'textarea', 'What should be done first to save the lake?', { ref: 65 }),
         F('gauge_reader', 'yn', 'Willing to read a water-level gauge weekly and send a photo?', { dk: false }),
         F('phone', 'text', 'Phone number', { pii: true, show: ['gauge_reader', 'yes'] }),
-        F('photos', 'photos', 'Photos (places shown, old photos / documents — with permission)'),
-        F('reliability', 'select', "Respondent's knowledge of the lake's history (your judgement)", { options: [op('high', 'High'), op('medium', 'Medium'), op('low', 'Low')] }),
+        F('photos', 'photos', 'Photos'),
+        F('reliability', 'select', 'Respondent reliability (your judgement)', { options: [op('high', 'High'), op('medium', 'Medium'), op('low', 'Low')] }),
         F('notes', 'textarea', 'Key quotes and follow-up'),
       ] },
     ],
@@ -102,7 +98,6 @@
   TT.registerForm({
     id: 'kii', short: 'KII', version: 2, group: 'community', icon: 'message', geo: 'loc', target: 2, targetLabel: 'interviews',
     title: e('Key-informant interview'),
-    purpose: e('Ward or municipal representative, the contractor or masons who built the lining, committee members and the oldest residents: works, records and a dated timeline.'),
     summary: (v) => [TT.optLabel(TT.FORMS.kii.fieldMap.role, v.role || ''), v.org].filter(Boolean).join(' · '),
     sections: [
       { id: 'A', title: e('Interview'), fields: [

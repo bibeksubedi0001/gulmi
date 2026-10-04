@@ -17,8 +17,7 @@
     const toc = [['plan', 'Two lakes, one day each'], ['day', 'Timetable for a lake day'], ['people', 'Interviews'], ['measure', 'Measurement notes'],
       ['hyp', 'Hypotheses'], ['data', 'Data and IDs'], ['facts', 'What is known'], ['refs', 'References']];
     root.replaceChildren(
-      h('div.page-head', h('h1', { text: 'Field guide' }),
-        h('p.muted', { text: 'Preliminary investigation of declining water levels at Timure Taal and Chhekmi Taal, Gulmi. Causes are hypotheses to test, not conclusions.' })),
+      h('div.page-head', h('h1', { text: 'Field guide' })),
       h('nav.toc', ...toc.map(([id, txt]) => h('a', { href: '#/guide', text: txt, onclick: (ev) => { ev.preventDefault(); document.getElementById('g-' + id).scrollIntoView({ behavior: 'smooth' }); } }))),
 
       sec('plan', 'Two lakes, one day each',
@@ -47,6 +46,7 @@
 
       sec('people', 'Interviews',
         ul([
+          'Consent: explain the study (why the lake is declining), about 20 minutes, voluntary, any question can be skipped, names are not reported.',
           'Prefer people who have lived near the lake for 15+ years; include women, herders and homestay households, and houses above and below the lake.',
           'Ask neutrally: do not mention the earthquake or the lining before the respondent has described what changed in their own words.',
           'Record years in BS. For any old water level ask for a landmark, and whether they saw it themselves or heard it.',

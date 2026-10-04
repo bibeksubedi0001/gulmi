@@ -54,9 +54,8 @@
   const PREP = E('maps:Printed maps / satellite sheets|records:Old photos and construction records requested|ki:Key informants contacted|phones:Portal opened offline on every phone; enumerator set|calib:EC / temperature meter calibrated|labels:Sample bags and core tubes labelled|permit:Ward / landowner permission|kit:Kit packed: tape, staff and level, sounding line, pegs, gauge, auger, core rings, bucket and stopwatch, life jacket, first aid');
   const TASKS = E('centre:Lake centre GPS set (Data page)|bm:Benchmark and staff gauge installed and levelled|wl_am:Morning level reading|perimeter:Perimeter walked: inflows, outlet, lining, cracks, seeps mapped|bathy:Depth transects + one QA repeat|soil:Soil samples (zones A–E)|infil:Infiltration tests|flows:Visible flows measured|hh:Household interviews (8)|kii:Key-informant interviews (2)|wl_pm:Evening level reading|hyp:Hypothesis matrix scored|reader:Community gauge reader appointed|export:All phones exported (field package)');
   reg({
-    id: 'day', short: 'DAY', icon: 'calendar', phase: 'plan', target: 1, targetLabel: 'day',
+    id: 'day', short: 'DAY', icon: 'calendar', target: 1, targetLabel: 'day',
     title: { en: 'Field day checklist' },
-    purpose: { en: 'One record for the day at each lake (and one for preparation): weather, rain and the essential tasks.' },
     summary: (v) => [v.date, Array.isArray(v.tasks) ? `${v.tasks.length}/${TASKS.length} tasks` : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Day' }, fields: [
@@ -74,9 +73,8 @@
 
   /* ---------- benchmark & staff gauge ---------- */
   reg({
-    id: 'bm', short: 'BM', icon: 'crosshair', phase: 'level', geo: 'loc', target: 2, targetLabel: 'marks',
+    id: 'bm', short: 'BM', icon: 'crosshair', geo: 'loc', target: 2, targetLabel: 'marks',
     title: { en: 'Benchmark & staff gauge' },
-    purpose: { en: 'A stable benchmark and a staff gauge levelled to it, so all water-level and depth readings use one datum.' },
     summary: (v) => [v.mark_id, v.kind === 'gauge' ? 'gauge' : 'benchmark', v.zero_rl != null ? 'zero RL ' + v.zero_rl : v.rl != null ? 'RL ' + v.rl : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Mark' }, fields: [
@@ -89,7 +87,7 @@
         Q('bm_ref', 'text', 'Benchmark used', { show: ['kind', 'gauge'], suggest: markIds }),
         Q('bs_bm', 'number', 'Backsight on benchmark', { unit: 'm', min: 0, max: 5, show: ['kind', 'gauge'] }),
         Q('fs_zero', 'number', 'Foresight on gauge zero', { unit: 'm', min: 0, max: 5, show: ['kind', 'gauge'] }),
-        Q('zero_rl', 'computed', 'Gauge-zero RL = BM RL + BS − FS', { unit: 'm', show: ['kind', 'gauge'], empty: 'needs the benchmark record (same lake), BS and FS',
+        Q('zero_rl', 'computed', 'Gauge-zero RL = BM RL + BS − FS', { unit: 'm', show: ['kind', 'gauge'], empty: 'needs benchmark RL, BS and FS',
           compute: (v, ctx) => {
             const b = TT.markRL(ctx, v.bm_ref, v.lake);
             return b != null && n(v.bs_bm) != null && n(v.fs_zero) != null ? b + n(v.bs_bm) - n(v.fs_zero) : null;
@@ -100,16 +98,15 @@
 
   /* ---------- water level ---------- */
   reg({
-    id: 'wl', short: 'WL', icon: 'wave', phase: 'level', target: 3, targetLabel: 'readings',
+    id: 'wl', short: 'WL', icon: 'wave', target: 3, targetLabel: 'readings',
     title: { en: 'Water-level reading' },
-    purpose: { en: 'Read the staff gauge morning, midday and evening on the field day; afterwards the community reader sends weekly photos.' },
     summary: (v) => [v.gauge, n(v.reading) != null ? fx(n(v.reading)) + ' m' : '', TT.fmt(v.dt)].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Reading' }, fields: [
         Q('gauge', 'text', 'Gauge ID', { required: true, suggest: gaugeIds, ph: 'SG-1' }),
         when(),
         Q('reading', 'number', 'Staff reading', { unit: 'm', required: true, min: -1, max: 10 }),
-        Q('wsl', 'computed', 'Water-surface RL', { unit: 'm', empty: 'level the gauge in the Benchmark form first',
+        Q('wsl', 'computed', 'Water-surface RL', { unit: 'm', empty: 'gauge not levelled yet',
           compute: (v, ctx) => { const z = TT.gaugeZero(ctx, v.gauge, v.lake); return z != null && n(v.reading) != null ? z + n(v.reading) : null; } }),
         Q('rain_since', 'select', 'Rain since the previous reading', { options: O.rainSince }),
         Q('observer', 'person', 'Read by', { default: (ctx) => ctx.settings.enumerator || '' }),
@@ -125,9 +122,8 @@
   const WATER = ['inflow', 'drain', 'outlet', 'seep', 'rpond', 'catch', 'erosion'];
   const featPrefix = (v) => (v.lake && FT_CODE[v.ftype] ? `${TT.lakeCode(v.lake)}-${FT_CODE[v.ftype]}-` : '');
   reg({
-    id: 'feat', short: 'FT', icon: 'pin', phase: 'site', geo: 'loc', target: 15, targetLabel: 'features',
+    id: 'feat', short: 'FT', icon: 'pin', geo: 'loc', target: 15, targetLabel: 'features',
     title: { en: 'Site feature' },
-    purpose: { en: 'One record per mapped feature: inflows, drains, outlet, lining, cracks, seeps and springs, recharge ponds, erosion, catchment divides and photo points.' },
     summary: (v) => [v.fid, v.ftype && TT.optLabel(TT.FORMS.feat.fieldMap.ftype, v.ftype), v.reaches && 'to lake: ' + v.reaches].filter(Boolean).join(' · '),
     onChange: autoId('fid', /^[A-Z]{2}-[A-Z]{2}-\d+$/, featPrefix, ['ftype', 'lake']),
     onNew: (v, ctx) => { const p = featPrefix(v); if (p && !v.fid) v.fid = TT.nextId(ctx, 'feat', 'fid', p); },
@@ -143,7 +139,7 @@
         Q('flow', 'select', 'Flow now', { show: ['ftype', [...WATER, 'crack']], options: O.flowState }),
         Q('size', 'text', 'Size (width × depth × length, m)', { show: ['ftype', ['inflow', 'drain', 'outlet', 'lining', 'crack', 'rpond', 'erosion']] }),
         Q('outside', 'select', 'Outside ground vs lining crest', { show: ['ftype', 'lining'], options: E('higher:Outside higher than crest|level:About level|lower:Outside lower than crest') }),
-        Q('ponding', 'yn', 'Water ponding against the outside of the lining?', { show: ['ftype', 'lining'], hint: { en: 'Key evidence that the lining blocks inflow (H2).' } }),
+        Q('ponding', 'yn', 'Water ponding against the outside of the lining?', { show: ['ftype', 'lining'] }),
         Q('weep', 'select', 'Weep holes', { show: ['ftype', 'lining'], options: E('ok:Present, working|blocked:Present, blocked|absent:Absent') }),
         Q('crack_w', 'number', 'Crack width (max)', { unit: 'mm', show: ['ftype', 'crack'] }),
         Q('below', 'select', 'Level relative to the lake water', { show: ['ftype', 'seep'], options: E('below:Below lake level|same:About the same|above:Above lake level') }),
@@ -159,9 +155,8 @@
 
   /* ---------- depth transect ---------- */
   reg({
-    id: 'bath', short: 'BT', icon: 'anchor', phase: 'level', geo: 'start_pt', target: 6, targetLabel: 'transects',
+    id: 'bath', short: 'BT', icon: 'anchor', geo: 'start_pt', target: 6, targetLabel: 'transects',
     title: { en: 'Depth transect' },
-    purpose: { en: 'Lines across the lake 5–10 m apart, a sounding every 3–5 m with GPS, and one line repeated for QA. Gauge readings at start and end give bed levels.' },
     summary: (v) => [v.tr_id, Array.isArray(v.soundings) ? v.soundings.filter((r) => r.depth != null).length + ' soundings' : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Transect' }, fields: [
@@ -197,9 +192,8 @@
   const ZONES = E('A:A — Exposed lake margin / former bed|B:B — Inflow / swale zone|C:C — Next to the lining (not through it)|D:D — Downslope wet spot|E:E — Undisturbed control upslope');
   const soilPrefix = (v) => (v.lake && v.zone ? `${TT.lakeCode(v.lake)}-${v.zone}` : '');
   reg({
-    id: 'soil', short: 'SS', icon: 'layers', phase: 'soil', geo: 'loc', target: 6, targetLabel: 'samples',
+    id: 'soil', short: 'SS', icon: 'layers', geo: 'loc', target: 6, targetLabel: 'samples',
     title: { en: 'Soil sample' },
-    purpose: { en: 'About 6 bag samples and 2 cores per lake across zones A–E. Never core through concrete or engineered lining.' },
     summary: (v) => [v.sample_id, v.stype === 'core' ? 'core' : v.stype ? 'bag' : '', v.depth].filter(Boolean).join(' · '),
     onChange: autoId('sample_id', /^[A-Z]{2}-[A-E]\d+$/, soilPrefix, ['zone', 'lake']),
     onNew: (v, ctx) => { const p = soilPrefix(v); if (p && !v.sample_id) v.sample_id = TT.nextId(ctx, 'soil', 'sample_id', p); },
@@ -214,7 +208,7 @@
         Q('moisture', 'select', 'Moisture', { options: E('dry:Dry|moist:Moist|wet:Wet|sat:Saturated') }),
         Q('texture', 'select', 'Field texture', { options: E('gravel:Gravel|sand:Sand|lsand:Loamy sand|sloam:Sandy loam|loam:Loam|siloam:Silt loam|cl:Clay loam|sic:Silty clay|clay:Clay|organic:Organic') }),
         Q('tests', 'checks', 'Lab tests', { options: E('wc:Water content|gsd:Grain size|atterberg:Atterberg limits|density:Density|perm:Permeability|om:Organic content') }),
-        Q('photos', 'photos', 'Photos (label and scale visible)', { required: true }),
+        Q('photos', 'photos', 'Photos', { required: true }),
         Q('collected_by', 'person', 'Collected by', { default: (ctx) => ctx.settings.enumerator || '' }),
         Q('notes', 'text', 'Notes'),
       ] },
@@ -241,9 +235,8 @@
     return r.length >= 3 ? TT.mean(r.slice(-3)) : r.length ? r[r.length - 1] : null;
   };
   reg({
-    id: 'inf', short: 'IF', icon: 'funnel', phase: 'soil', geo: 'loc', target: 2, targetLabel: 'tests',
+    id: 'inf', short: 'IF', icon: 'funnel', geo: 'loc', target: 2, targetLabel: 'tests',
     title: { en: 'Infiltration test' },
-    purpose: { en: 'Ring infiltrometer on dry soil in an inflow zone and a control. It measures infiltration, not seepage through the submerged lake bed.' },
     summary: (v) => [v.test_id, v.zone && 'zone ' + v.zone, n(v.steady) != null ? fx(n(v.steady), 1) + ' mm/h' : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Test' }, fields: [
@@ -253,7 +246,7 @@
         Q('zone', 'select', 'Zone', { options: ZONES }),
         Q('method', 'select', 'Method', { options: E('double:Double ring|single:Single ring') }),
         Q('d_inner', 'number', 'Inner ring diameter', { unit: 'cm' }),
-        Q('readings', 'table', 'Readings (depth from ring rim down to the water)', { minRows: 8, printRows: 12, columns: [
+        Q('readings', 'table', 'Readings (depth from rim to water)', { minRows: 8, printRows: 12, columns: [
           C('t', 'number', 'Time', { unit: 'min' }), C('rd', 'number', 'Depth to water', { unit: 'cm' }), C('refill', 'number', 'Refilled to', { unit: 'cm' }),
           C('rate', 'number', 'Rate', { computed: true, unit: 'mm/h', dp: 1 })],
           compute: infComp,
@@ -272,9 +265,8 @@
   /* ---------- discharge ---------- */
   const volQ = (r, v) => { const t = n(r.t_s), vol = n(r.vol_l) ?? n(v.container_l); return t > 0 && vol != null ? vol / t : null; };
   reg({
-    id: 'q', short: 'Q', icon: 'flow', phase: 'soil', geo: 'loc', target: 2, targetLabel: 'measurements',
+    id: 'q', short: 'Q', icon: 'flow', geo: 'loc', target: 2, targetLabel: 'measurements',
     title: { en: 'Flow measurement' },
-    purpose: { en: 'Bucket-and-stopwatch flow of any inflow, outflow, seep or spring, repeated 3–5 times; or a visual estimate when it cannot be caught.' },
     summary: (v) => [v.site_id, n(v.q_adopt) != null ? fx(n(v.q_adopt)) + ' L/s' : '', TT.fmt(v.dt)].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Measurement' }, fields: [
@@ -300,15 +292,14 @@
   /* ---------- hypothesis-evidence matrix ---------- */
   const SCORE = E('0:0 Absent / contradicted|1:1 Weak|2:2 Moderate|3:3 Strong');
   reg({
-    id: 'hyp', short: 'HM', icon: 'target', phase: 'synth', target: 1, targetLabel: 'assessment',
+    id: 'hyp', short: 'HM', icon: 'target', target: 1, targetLabel: 'assessment',
     title: { en: 'Cause ranking (hypothesis matrix)' },
-    purpose: { en: 'Score each hypothesis on the evidence collected at this lake: 0 absent or contradicted, 1 weak, 2 moderate, 3 strong. A score is an organising device, not a probability.' },
     summary: (v) => v.ranking || '',
     sections: [
       { id: '1', title: { en: 'Scores' }, fields: [
         Q('assessor', 'people', 'Assessed by', { default: TT.defaultTeam }),
         ...TT.HYP.flatMap((hy) => [
-          Q(hy.id + '_score', 'select', `${hy.id} ${hy.en}`, { options: SCORE, hint: { en: hy.test } }),
+          Q(hy.id + '_score', 'select', `${hy.id} ${hy.en}`, { options: SCORE }),
           Q(hy.id + '_ev', 'text', `${hy.id} evidence (record IDs)`, { note: false }),
         ]),
         Q('ranking', 'computed', 'Ranking', { compute: (v) => {
@@ -317,16 +308,7 @@
         } }),
         Q('mechanism', 'select', 'Main problem appears to be', { options: E('inflow:Too little inflow / recharge|outflow:Too much outflow / seepage|both:Both|unclear:Not yet clear') }),
         Q('next', 'textarea', 'Next steps (monitoring, seepage tests, design)'),
-        Q('i_warn', 'info', null, { text: { en: 'Do not repair or add lining before confirming whether the problem is too little inflow or too much seepage; a fix for one can worsen the other.' } }),
       ] },
     ],
   });
-
-  TT.PHASES = [
-    { id: 'plan', en: 'Field day', note: 'one checklist per lake' },
-    { id: 'level', en: 'Water level and depth', note: 'gauge first, then transects' },
-    { id: 'site', en: 'Site features', note: 'inflow, outlet, lining, cracks, seeps' },
-    { id: 'soil', en: 'Soils and flows', note: 'samples, infiltration, discharge' },
-    { id: 'synth', en: 'Cause ranking', note: 'end of each lake day' },
-  ];
 })();
