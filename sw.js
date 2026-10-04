@@ -1,5 +1,5 @@
 /* Timure Taal field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.0.1';
+const VERSION = 'timure-portal-v1.0.2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/util.js', 'js/geo.js', 'js/db.js', 'js/schema-common.js', 'js/engine.js', 'js/forms-community.js',

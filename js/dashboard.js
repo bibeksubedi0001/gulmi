@@ -61,7 +61,7 @@
         }
       });
       const borda = new Map();
-      hh.forEach((r) => (r.data.cause_rank || []).forEach((c, i) => borda.set(c, (borda.get(c) || 0) + (3 - i))));
+      hh.forEach((r) => (r.data.cause_rank || []).forEach((c, i) => { if (c) borda.set(c, (borda.get(c) || 0) + (3 - i)); }));
       const rate = {};
       hh.forEach((r) => Object.entries(r.data.cause_rate || {}).forEach(([c, o]) => {
         rate[c] = rate[c] || { main: 0, contrib: 0, unlikely: 0, dk: 0 };
@@ -119,7 +119,7 @@
     series.forEach((se) => {
       const pts = [...se.pts].sort((a, b) => a.x - b.x);
       if (se.line !== false && pts.length > 1) g.append(s('polyline', { points: pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(' '), fill: 'none', stroke: se.color, 'stroke-width': 2.2, 'stroke-dasharray': se.dash || null }));
-      pts.forEach((p) => g.append(s('circle', { cx: X(p.x), cy: Y(p.y), r: p.r || 3.6, fill: p.color || se.color }, s('title', {}, p.title || `${xFmt(p.x)}: ${yFmt(p.y)}`))));
+      pts.forEach((p) => g.append(s('rect', { x: X(p.x) - 3.5, y: Y(p.y) - 3.5, width: 7, height: 7, fill: p.color || se.color }, s('title', {}, p.title || `${xFmt(p.x)}: ${yFmt(p.y)}`))));
     });
     const legend = h('div.legend', ...series.map((se) => h('span', h('i', { style: { background: se.color } }), se.name)));
     return h('div.chart-wrap', g, series.length > 1 || series[0].name ? legend : null);
@@ -166,6 +166,7 @@
     await TT.loadCss('vendor/leaflet/leaflet.css');
     await TT.loadScript('vendor/leaflet/leaflet.js');
     const L_ = window.L;
+    const square = (color, size) => L_.divIcon({ className: 'mk', html: `<i style="background:${color};width:${size}px;height:${size}px"></i>`, iconSize: [size + 4, size + 4] });
     const map = L_.map(el, { scrollWheelZoom: false }).setView([TT.LAKE.lat, TT.LAKE.lon], 17);
     const imagery = L_.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 20, maxNativeZoom: 18, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }).addTo(map);
@@ -175,7 +176,7 @@
       const ref = await (await fetch('data/reference.geojson')).json();
       overlays['Reference (OSM lake outline, road, path)'] = L_.geoJSON(ref, {
         style: (f) => f.properties.kind === 'lake_outline' ? { color: '#4fd1ff', weight: 2, fillOpacity: 0.08 } : f.properties.kind === 'road' ? { color: '#ffd166', weight: 3 } : { color: '#ffffff', weight: 2, dashArray: '4 4' },
-        pointToLayer: (f, ll) => L_.circleMarker(ll, { radius: 5, color: '#fff', weight: 2, fillColor: '#0aa2c0', fillOpacity: 1 }),
+        pointToLayer: (f, ll) => L_.marker(ll, { icon: square('#0aa2c0', 10) }),
         onEachFeature: (f, layer) => layer.bindTooltip(f.properties.name),
       }).addTo(map);
     } catch (e) { /* offline without cache: map still works */ }
@@ -197,11 +198,11 @@
         p.kind === 'point' && h('div.muted', { text: p.question }), p.kind === 'table_point' && h('div', { text: `row ${p.row}${p.depth_m != null ? ` · depth ${p.depth_m} m` : ''}${p.bedrl_m ? ` · bed RL ${p.bedrl_m}` : ''}` }),
         h('a', { href: '#/edit/' + encodeURIComponent(p.record_id), text: 'Open record' }));
       if (p.kind === 'table_point' && p.table === 'soundings') {
-        L_.circleMarker([lat, lon], { radius: 5, weight: 1, color: '#fff', fillColor: depthCol(n(p.depth_m) || 0, maxDepth), fillOpacity: 1 }).bindPopup(pop).addTo(groups.bath);
+        L_.marker([lat, lon], { icon: square(depthCol(n(p.depth_m) || 0, maxDepth), 8) }).bindPopup(pop).addTo(groups.bath);
       } else if (p.kind === 'record') {
-        L_.circleMarker([lat, lon], { radius: 7, weight: 2, color: '#fff', fillColor: GROUP_COL[p.group] || '#555', fillOpacity: 1 }).bindPopup(pop).addTo(groups.record);
+        L_.marker([lat, lon], { icon: square(GROUP_COL[p.group] || '#555', 13) }).bindPopup(pop).addTo(groups.record);
       } else {
-        L_.circleMarker([lat, lon], { radius: 5, weight: 1.5, color: '#fff', fillColor: p.group === 'community' ? '#f2b56b' : '#5fc59b', fillOpacity: 0.95 }).bindPopup(pop).addTo(groups.point);
+        L_.marker([lat, lon], { icon: square(p.group === 'community' ? '#f2b56b' : '#5fc59b', 9) }).bindPopup(pop).addTo(groups.point);
       }
     }
     Object.values(groups).forEach((g) => g.addTo(map));
@@ -295,14 +296,14 @@
         sub({ ne: 'भैंसी आहाल', en: 'Buffalo wallowing' }, c.wallow));
       com.append(grid2);
 
-      const tlPts = (col) => Object.entries(c.timeline).filter(([, o]) => o[col]).map(([y, o]) => ({ x: +y, y: TT.mean(o[col]), r: 2.5 + Math.min(5, o[col].length), title: `${TT.bsLabel(+y)}: mean ${TT.mean(o[col]).toFixed(2)} (n=${o[col].length})` }));
+      const tlPts = (col) => Object.entries(c.timeline).filter(([, o]) => o[col]).map(([y, o]) => ({ x: +y, y: TT.mean(o[col]), title: `${TT.bsLabel(+y)}: mean ${TT.mean(o[col]).toFixed(2)} (n=${o[col].length})` }));
       const tlYears = Object.keys(c.timeline).map(Number);
       const tlTicks = [];
       if (tlYears.length) {
         const a = Math.min(...tlYears), b = Math.max(...tlYears), step = Math.max(1, Math.ceil((b - a) / 10));
         for (let y = a; y <= b; y += step) tlTicks.push(y);
       }
-      com.append(h('h4', { text: 'Reconstructed lake condition by year (mean of respondents; 5 = full, 1 = dry; dot size = n)' }),
+      com.append(h('h4', { text: 'Reconstructed lake condition by year (mean of respondents; 5 = full, 1 = dry; hover a point for n)' }),
         chart({ series: [{ name: 'Dry season (Chaitra–Jestha)', color: '#b5541c', pts: tlPts('dry') }, { name: 'After monsoon (Bhadra–Asoj)', color: '#0b6e79', pts: tlPts('wet') }],
           yMin: 1, yMax: 5, yTicks: [1, 2, 3, 4, 5], xTicks: tlTicks.length ? tlTicks : null, xFmt: (x) => String(Math.round(x)), yFmt: (y) => String(Math.round(y)), markers: [{ x: 2072, label: '2072 earthquake' }] }));
       const sePts = (col) => Object.entries(c.seasonal).filter(([, o]) => o[col]).map(([mo, o]) => ({ x: +mo, y: TT.mean(o[col]), title: `${TT.O.months[mo - 1].en}: ${TT.mean(o[col]).toFixed(2)} (n=${o[col].length})` }));
@@ -331,26 +332,41 @@
   };
 
   function integratedTimeline(records, c) {
-    const works = [];
-    records.filter((r) => r.form === 'hist').forEach((r) => { const y = parseInt(r.data.year_start, 10); if (y) works.push({ y, label: TT.optLabel(TT.FORMS.hist.fieldMap.wtype, r.data.wtype || ''), id: r.id }); });
-    const hhCon = new Map();
+    const works = new Map(), hhCon = new Map();
+    records.filter((r) => r.form === 'hist').forEach((r) => { const y = parseInt(r.data.year_start, 10); if (y) works.set(y, (works.get(y) || 0) + 1); });
     records.filter((r) => r.form === 'hh').forEach((r) => { const y = parseInt(r.data.con_year, 10); if (y) hhCon.set(y, (hhCon.get(y) || 0) + 1); });
-    const yrs = [...c.years.keys(), ...works.map((w) => w.y), ...hhCon.keys(), 2072];
+    const yrs = [...c.years.keys(), ...works.keys(), ...hhCon.keys(), 2072];
     const from = Math.min(2062, ...yrs), to = Math.max(TT.bsYearOf(), ...yrs);
-    const W = 720, rowH = 46, m = { l: 150, r: 12, t: 20 };
-    const lanes = ['Community: first noticed decline', 'Community: concrete work year', 'Recorded works (CH register)', 'Events'];
-    const H = m.t + lanes.length * rowH + 26;
-    const X = (y) => m.l + ((y - from) / (to - from || 1)) * (W - m.l - m.r);
-    const g = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart timeline' });
-    lanes.forEach((ln, i) => g.append(s('text', { x: 6, y: m.t + i * rowH + rowH / 2 + 4, class: 'lane' }, ln), s('line', { x1: m.l, x2: W - m.r, y1: m.t + (i + 1) * rowH, y2: m.t + (i + 1) * rowH, class: 'grid' })));
-    for (let y = from; y <= to; y++) if (y % 2 === 0) g.append(s('text', { x: X(y), y: H - 8, 'text-anchor': 'middle', class: 'tick' }, y));
-    g.append(s('line', { x1: X(2072), x2: X(2072), y1: m.t - 6, y2: m.t + lanes.length * rowH, class: 'marker' }));
-    const bub = (lane, y, k, cls, title) => g.append(s('circle', { cx: X(y), cy: m.t + lane * rowH + rowH / 2, r: 4 + Math.min(14, k * 2), class: cls }, s('title', {}, title)));
-    c.years.forEach((k, y) => bub(0, y, k, 'b-com', `${TT.bsLabel(y)}: ${k} respondent(s) first noticed`));
-    hhCon.forEach((k, y) => bub(1, y, k, 'b-con', `${TT.bsLabel(y)}: ${k} respondent(s) dated concrete work`));
-    works.forEach((w) => bub(2, w.y, 1, 'b-work', `${w.id} ${w.label} ${TT.bsLabel(w.y)}`));
-    Object.entries(TT.ANCHORS).forEach(([y, a]) => { if (+y >= from && +y <= to) bub(3, +y, 0.5, +y === 2072 || +y === 2080 ? 'b-eq' : 'b-ev', `${TT.bsLabel(+y)}: ${a.en}`); });
-    return h('div', g, h('p.muted.sm', { text: 'Hover/tap circles for details. If the first-noticed peak precedes the concrete-work years, H2 is weakened; if it coincides with 2072 only by timing, H4 still needs physical evidence.' }));
+    const lanes = [
+      ['Community: first noticed decline', c.years, 'b-com', 'respondent(s) first noticed the decline'],
+      ['Community: year of concrete work', hhCon, 'b-con', 'respondent(s) dated the concrete work'],
+      ['Recorded works (CH register)', works, 'b-work', 'work(s) recorded'],
+    ];
+    const W = 720, rowH = 48, m = { l: 168, r: 10, t: 8 };
+    const H = m.t + (lanes.length + 1) * rowH + 22;
+    const cw = (W - m.l - m.r) / (to - from + 1);
+    const X = (y) => m.l + (y - from) * cw;
+    const g = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart timeline', role: 'img' });
+    [...lanes.map((l) => l[0]), 'Events (listed below)'].forEach((ln, i) => g.append(
+      s('text', { x: 4, y: m.t + i * rowH + rowH / 2 + 4, class: 'lane' }, ln),
+      s('line', { x1: m.l, x2: W - m.r, y1: m.t + (i + 1) * rowH, y2: m.t + (i + 1) * rowH, class: 'axis' })));
+    for (let y = from; y <= to; y++) if ((y - from) % 2 === 0) g.append(s('text', { x: X(y) + cw / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, y));
+    g.append(s('line', { x1: X(2072) + cw / 2, x2: X(2072) + cw / 2, y1: m.t, y2: m.t + (lanes.length + 1) * rowH, class: 'marker' }));
+    lanes.forEach(([, map, cls, what], i) => {
+      const max = Math.max(1, ...map.values());
+      const base = m.t + (i + 1) * rowH;
+      map.forEach((k, y) => {
+        const bh = Math.max(3, (k / max) * (rowH - 18));
+        g.append(s('rect', { x: X(y) + 1.5, y: base - bh, width: Math.max(2, cw - 3), height: bh, class: cls }, s('title', {}, `${TT.bsLabel(y)}: ${k} ${what}`)),
+          s('text', { x: X(y) + cw / 2, y: base - bh - 3, 'text-anchor': 'middle', class: 'cnt' }, k));
+      });
+    });
+    const evBase = m.t + (lanes.length + 1) * rowH;
+    const events = Object.entries(TT.ANCHORS).filter(([y]) => +y >= from && +y <= to);
+    events.forEach(([y, a]) => g.append(s('rect', { x: X(+y) + cw / 2 - 1.5, y: evBase - rowH + 10, width: 3, height: rowH - 14, class: +y === 2072 || +y === 2080 ? 'b-eq' : 'b-ev' }, s('title', {}, `${TT.bsLabel(+y)}: ${a.en}`))));
+    return h('div', g,
+      h('p.muted.sm', { text: 'Events: ' + events.map(([y, a]) => `${y} ${a.en}`).join(' · ') }),
+      h('p.muted.sm', { text: 'Bar height = count in that year, scaled within each row (number above each bar). If the first-noticed peak precedes the concrete-work years, H2 is weakened; if it coincides with 2072 only by timing, H4 still needs physical evidence.' }));
   }
 
   function engSummary(records) {

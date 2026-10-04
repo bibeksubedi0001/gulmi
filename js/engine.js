@@ -78,7 +78,7 @@
     g.fillStyle = '#0d2a33';
     g.fillRect(0, ih, w, band);
     g.fillStyle = '#ffffff';
-    g.font = `${Math.round(band * 0.48)}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+    g.font = `${Math.round(band * 0.5)}px "Times New Roman", Times, serif`;
     g.textBaseline = 'middle';
     const now = new Date().toISOString();
     const txt = ['Timure Taal', id, rec.id, 'logged ' + TT.fmt(now), fix ? `${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ±${fix.acc} m` : 'no GPS'].join('   ·   ');
@@ -121,7 +121,7 @@
       case 'checks': case 'months':
         return (Array.isArray(v) ? v : [v]).map((x) => TT.optLabel(f, x, lang) + (x === 'other' && oth ? ': ' + oth : '')).join('; ');
       case 'rank':
-        return (v || []).map((x, i) => `${i + 1}. ${TT.optLabel(f, x, lang)}`).join('; ');
+        return (v || []).map((x, i) => (x ? `${i + 1}. ${TT.optLabel(f, x, lang)}` : '')).filter(Boolean).join('; ');
       case 'gps': return TT.gpsText(v);
       case 'photos': return (v || []).join(', ');
       case 'grid':
@@ -236,67 +236,70 @@
     return { el: h('div.row-inline', s, h('span.muted.sm', { text: 'BS (AD)' })), update: () => { s.value = io.get() ?? ''; } };
   };
 
-  function chips(io, multi) {
+  let optSeq = 0;
+  function options(io, multi) {
     const f = io.f;
     const excl = f.exclusive || ['none', 'dk', 'na'];
-    const box = h('div.chips' + (f.cols ? '.cols' : ''), { role: multi ? 'group' : 'radiogroup' });
-    const btns = f.options.map((op) => h('button.chip', {
-      type: 'button', dataset: { v: op.v },
-      onclick: () => {
+    const name = `o${++optSeq}-${f.id}`;
+    const box = h('div.opts' + (f.options.length > 6 ? '.many' : ''), { role: multi ? 'group' : 'radiogroup' });
+    const inputs = f.options.map((op) => {
+      const inp = h('input', { type: multi ? 'checkbox' : 'radio', name, value: op.v });
+      // Clicking the selected radio again clears it (native radios cannot be unset otherwise).
+      inp.addEventListener('click', () => {
         if (multi) {
           let cur = Array.isArray(io.get()) ? [...io.get()] : [];
-          if (cur.includes(op.v)) cur = cur.filter((x) => x !== op.v);
+          if (!inp.checked) cur = cur.filter((x) => x !== op.v);
           else if (excl.includes(op.v)) cur = [op.v];
           else cur = cur.filter((x) => !excl.includes(x)).concat(op.v);
           io.set(cur);
         } else io.set(io.get() === op.v ? '' : op.v);
         paint();
-      },
-    }, L(op)));
-    box.append(...btns);
+      });
+      box.append(h('label.opt', inp, h('span', L(op))));
+      return inp;
+    });
     function paint() {
       const v = io.get();
-      btns.forEach((b) => {
-        const on = multi ? Array.isArray(v) && v.includes(b.dataset.v) : v === b.dataset.v;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      });
+      inputs.forEach((i) => { i.checked = multi ? Array.isArray(v) && v.includes(i.value) : v === i.value; });
     }
     paint();
     return { el: box, update: paint };
   }
-  R.radio = (io) => chips(io, false);
+  R.radio = (io) => options(io, false);
   R.yn = R.radio;
   R.scale = R.radio;
-  R.checks = (io) => chips(io, true);
-  R.months = (io) => chips(io, true);
+  R.checks = (io) => options(io, true);
+  R.months = (io) => options(io, true);
 
+  // Ranks are stored as [rank-1 option, rank-2 option, ...]; a rank given to a second option moves to it.
   R.rank = (io) => {
     const f = io.f;
     const max = f.max || 3;
-    const box = h('div.chips.rank');
-    const btns = f.options.map((op) => h('button.chip', {
-      type: 'button', dataset: { v: op.v },
-      onclick: () => {
-        let cur = [...(io.get() || [])];
-        if (cur.includes(op.v)) cur = cur.filter((x) => x !== op.v);
-        else if (cur.length < max) cur.push(op.v);
-        else { TT.toast(`Only ${max} can be ranked. Tap a ranked item to remove it first.`, 'warn'); return; }
-        io.set(cur);
+    const sels = [];
+    const rows = f.options.map((op) => {
+      const sel = h('select.inp.sm.rank-sel', { 'aria-label': 'Rank' }, h('option', { value: '', text: '—' }),
+        ...Array.from({ length: max }, (_, i) => h('option', { value: String(i + 1), text: String(i + 1) })));
+      sel.addEventListener('change', () => {
+        const old = io.get() || [];
+        const cur = Array.from({ length: max }, (_, i) => (old[i] === op.v ? null : old[i] ?? null));
+        if (sel.value) cur[+sel.value - 1] = op.v;
+        while (cur.length && cur[cur.length - 1] == null) cur.pop();
+        io.set(cur.some(Boolean) ? cur : '');
         paint();
-      },
-    }, h('span.rk'), L(op)));
-    box.append(...btns);
+      });
+      sels.push([sel, op.v]);
+      return h('label.rank-row', h('span', L(op)), sel);
+    });
     function paint() {
       const cur = io.get() || [];
-      btns.forEach((b) => {
-        const i = cur.indexOf(b.dataset.v);
-        b.classList.toggle('on', i >= 0);
-        b.firstChild.textContent = i >= 0 ? String(i + 1) : '';
-      });
+      sels.forEach(([s, v]) => { const i = cur.indexOf(v); s.value = i >= 0 ? String(i + 1) : ''; s.dataset.val = s.value; });
     }
     paint();
-    return { el: h('div', h('div.q-hint', L({ ne: `महत्त्वका आधारमा क्रमैसँग छुनुहोस् (बढीमा ${TT.neDigits(max)})। हटाउन फेरि छुनुहोस्।`, en: `Tap in order of importance (max ${max}). Tap again to remove.` })), box), update: paint };
+    return {
+      el: h('div', h('div.q-hint', L({ ne: `सबैभन्दा सम्भावित कारणलाई १ देखि ${TT.neDigits(max)} सम्म क्रम दिनुहोस् (एउटा क्रम एक पटक मात्र)।`, en: `Give ranks 1 to ${max} to the most likely causes (each rank once).` })),
+        h('div.rank-list', ...rows)),
+      update: paint,
+    };
   };
 
   R.grid = (io) => {
@@ -577,14 +580,20 @@
 
     function evidenceRow(f) {
       const key = f.id + '__src';
-      const btns = TT.O.src.map((o) => h('button.chip.sm', { type: 'button', dataset: { v: o.v }, onclick: () => {
-        if (vals[key] === o.v) delete vals[key]; else vals[key] = o.v;
-        paint();
-        changed(key);
-      } }, L(o)));
-      const paint = () => btns.forEach((b) => b.classList.toggle('on', vals[key] === b.dataset.v));
+      const name = `e${++optSeq}-${f.id}`;
+      const inputs = TT.O.src.map((o) => {
+        const inp = h('input', { type: 'radio', name, value: o.v });
+        inp.addEventListener('click', () => {
+          if (vals[key] === o.v) delete vals[key]; else vals[key] = o.v;
+          paint();
+          changed(key);
+        });
+        return inp;
+      });
+      const paint = () => inputs.forEach((i) => { i.checked = vals[key] === i.value; });
       paint();
-      return h('div.evi', h('span.evi-l', L({ ne: 'जानकारीको स्रोत:', en: 'How do they know?' })), ...btns);
+      return h('div.evi', h('span.evi-l', L({ ne: 'जानकारीको स्रोत:', en: 'How do they know?' })),
+        ...TT.O.src.map((o, i) => h('label.opt.inline', inputs[i], h('span', L(o)))));
     }
 
     function noteRow(f) {
