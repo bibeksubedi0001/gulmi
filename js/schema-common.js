@@ -1,9 +1,40 @@
-/* Timure Taal field portal: shared option lists and schema helpers. */
+/* Timure & Chhekmi lakes field portal: shared option lists and schema helpers. */
 'use strict';
 (function () {
   const TT = window.TT;
   const o = (v, ne, en) => ({ v, ne, en });
   const O = (TT.O = {});
+
+  // Chhekmi's centre is not in any inventory or map; the team sets it by GPS on its field day (Data page).
+  TT.LAKES = {
+    timure: { id: 'timure', code: 'TT', ne: 'टिमुरे ताल', en: 'Timure Taal', lat: 28.10051389, lon: 83.37936389, place: 'Chandrakot RM-4, Remi, Gulmi' },
+    chhekmi: { id: 'chhekmi', code: 'CK', ne: 'छेक्मी ताल', en: 'Chhekmi Taal', lat: null, lon: null, place: 'Gulmi — centre to be fixed by GPS on site' },
+  };
+  TT.LAKE_IDS = Object.keys(TT.LAKES);
+  TT.lakeName = (id, lang = 'en') => (TT.LAKES[id] ? TT.Ls(TT.LAKES[id], lang) : id === 'both' ? 'Both lakes' : '');
+  TT.lakeCode = (id) => (TT.LAKES[id] ? TT.LAKES[id].code : '');
+  TT.lakeCentre = (id) => {
+    const set = TT.settings && TT.settings.lakeCentres && TT.settings.lakeCentres[id];
+    if (set && Number.isFinite(set.lat)) return { ...set, custom: true };
+    const lk = TT.LAKES[id];
+    return lk && Number.isFinite(lk.lat) ? { lat: lk.lat, lon: lk.lon } : null;
+  };
+  O.lake = TT.LAKE_IDS.map((id) => o(id, TT.LAKES[id].ne, TT.LAKES[id].en));
+  O.lakeBoth = [...O.lake, o('both', 'दुवै ताल', 'Both lakes')];
+
+  TT.TEAM = ['Bibek', 'Mission', 'Amrit'];
+  O.team = [...TT.TEAM.map((name) => ({ v: name, en: name })), o('other', 'अन्य', 'Other')];
+  TT.defaultTeam = (ctx) => {
+    const t = ctx.settings.team;
+    if (Array.isArray(t) && t.length) return [...t];
+    return ctx.settings.enumerator ? [ctx.settings.enumerator] : '';
+  };
+  // Readable name(s) of a person/people field, resolving "Other".
+  TT.personText = (vals, id) => {
+    const v = vals[id], other = vals[id + '__other'];
+    const one = (x) => (x === 'other' ? other || '' : x);
+    return Array.isArray(v) ? v.map(one).filter(Boolean).join(', ') : v ? one(v) : '';
+  };
 
   O.yn = [o('yes', 'हो', 'Yes'), o('no', 'होइन', 'No')];
   O.ynd = [...O.yn, o('dk', 'थाहा छैन', "Don't know")];
@@ -162,13 +193,18 @@
     if (f.type === 'yn' && !f.options) f.options = f.dk === false ? O.yn : f.na ? O.ynna : O.ynd;
     if (f.type === 'bsyear' && !f.options) f.options = [...TT.bsYears(f.from || TT.bsYearOf(), f.to || 2000), DK_YEAR];
     if (f.type === 'months' && !f.options) f.options = O.months;
+    if (f.type === 'person' || f.type === 'people') { f.options = O.team; f.other = true; }
     if (f.type === 'table') f.columns.forEach(normalize);
     compileShow(f);
   }
 
-  // Prepare a form once: numbering, flat field list, lookup map.
+  // Prepare a form once: lake field, numbering, flat field list, lookup map.
   TT.prepareForm = function (form) {
     if (form._ready) return form;
+    form.sections[0].fields.unshift({
+      id: 'lake', type: 'select', q: { ne: 'ताल', en: 'Lake' }, required: true, note: false,
+      options: form.lakeBoth ? O.lakeBoth : O.lake, default: (ctx) => ctx.settings.activeLake || '',
+    });
     form.fields = [];
     form.fieldMap = {};
     form.sections.forEach((sec, si) => {

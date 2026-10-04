@@ -1,4 +1,4 @@
-/* Timure Taal field portal: exports (Excel + codebook, GeoJSON, KML, ZIP package, JSON) and merge-import. */
+/* Lakes field portal: exports (Excel + codebook, GeoJSON, KML, ZIP package, JSON) and merge-import. */
 'use strict';
 (function () {
   const TT = window.TT;
@@ -127,7 +127,7 @@
         if (f.type === 'info' || (f.pii && !pii)) continue;
         out.push({
           form: form.short, column: colKey(f), type: f.type, report_ref: f.ref ? 'R' + f.ref : '',
-          question_en: TT.Ls(f.q, 'en'), question_ne: f.q && f.q.ne ? f.q.ne : '',
+          question: TT.Ls(f.q, 'en'),
           asked_when: TT.whenText(form, f) || (f.section._dep ? TT.whenText(form, f.section) : ''),
           unit: f.unit || '', options: (f.options || f.scale || []).map((o) => `${o.v}=${TT.Ls(o, 'en')}`).join('; '),
           personal_data: f.pii ? 'yes' : '',
@@ -145,7 +145,8 @@
     const byForm = {};
     records.forEach((r) => (byForm[r.form] = byForm[r.form] || []).push(r));
     const readme = [
-      { item: 'Project', value: 'Timure Taal — preliminary engineering investigation of declining water level (Chandrakot RM-4, Gulmi)' },
+      { item: 'Project', value: 'Timure Taal and Chhekmi Taal — preliminary engineering investigation of declining water levels (Gulmi)' },
+      ...TT.LAKE_IDS.map((id) => { const c = TT.lakeCentre(id); return { item: `${TT.lakeName(id)} (${TT.lakeCode(id)}) centre`, value: c ? `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}` : 'not set' }; }),
       { item: 'Exported', value: new Date().toISOString() },
       { item: 'Device code', value: ctx.device },
       { item: 'Records', value: records.length },
@@ -158,7 +159,7 @@
     addSheet(wb, used, 'All records', records.map((r) => {
       const form = TT.FORMS[r.form];
       const g = form && form.geo ? r.data[form.geo] : null;
-      return { record_id: r.id, form: form ? form.short : r.form, title: form ? TT.Ls(form.title, 'en') : '', status: r.status, created: TT.fmt(r.created), updated: TT.fmt(r.updated), enumerator: r.enumerator || '', summary: form ? safeSummary(form, r.data) : '', ...gpsCols('gps', g) };
+      return { record_id: r.id, lake: TT.lakeName(r.data.lake), form: form ? form.short : r.form, title: form ? TT.Ls(form.title, 'en') : '', status: r.status, created: TT.fmt(r.created), updated: TT.fmt(r.updated), enumerator: r.enumerator || '', summary: form ? safeSummary(form, r.data) : '', ...gpsCols('gps', g) };
     }));
     for (const id of TT.FORM_ORDER) {
       const recs = byForm[id];
@@ -187,7 +188,7 @@
       const form = TT.FORMS[rec.form];
       if (!form) continue;
       const v = rec.data;
-      const base = { record_id: rec.id, form: form.short, form_title: TT.Ls(form.title, 'en'), group: form.group, status: rec.status, summary: safeSummary(form, v), updated: TT.fmt(rec.updated) };
+      const base = { record_id: rec.id, lake: v.lake || '', form: form.short, form_title: TT.Ls(form.title, 'en'), group: form.group, status: rec.status, summary: safeSummary(form, v), updated: TT.fmt(rec.updated) };
       for (const f of form.fields) {
         if (!TT.visible(f, v) || (f.pii && !pii)) continue;
         if (f.type === 'gps' && ok(v[f.id])) {
@@ -208,13 +209,12 @@
       }
       const line = (a, b, kind) => { if (ok(v[a]) && ok(v[b])) feats.push({ type: 'Feature', properties: { ...base, kind }, geometry: { type: 'LineString', coordinates: [[r6(v[a].lon), r6(v[a].lat)], [r6(v[b].lon), r6(v[b].lat)]] } }); };
       if (rec.form === 'bath') line('start_pt', 'end_pt', 'transect');
-      if (rec.form === 'lin') line('start_pt', 'end_pt', 'lining_segment');
-      if (rec.form === 'catch') line('loc', 'end_pt', 'runoff_path');
+      if (rec.form === 'feat' && v.ftype === 'catch') line('loc', 'end_pt', 'runoff_path');
     }
     return feats;
   };
 
-  TT.toGeoJSON = (feats) => new Blob([JSON.stringify({ type: 'FeatureCollection', name: 'timure_taal_field_data', features: feats }, null, 1)], { type: 'application/geo+json' });
+  TT.toGeoJSON = (feats) => new Blob([JSON.stringify({ type: 'FeatureCollection', name: 'gulmi_lakes_field_data', features: feats }, null, 1)], { type: 'application/geo+json' });
 
   const xml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
   const KML_COL = { community: 'ff3b8bd9', engineering: 'ff1f9a63', table_point: 'ffd7a01b', line: 'ff00a5ff' };
@@ -233,9 +233,10 @@
       return `<Placemark><name>${xml(name.trim())}</name><styleUrl>#${sid}</styleUrl><description><![CDATA[${desc(p)}]]></description>${geom}</Placemark>`;
     };
     const body = Object.entries(byForm).map(([form, fs]) => `<Folder><name>${xml(form)} — ${xml(fs[0].properties.form_title)}</name>${fs.map(pm).join('')}</Folder>`).join('');
-    const doc = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Timure Taal field data ${TT.today()}</name>` +
+    const doc = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Timure and Chhekmi lakes field data ${TT.today()}</name>` +
       Object.entries(KML_COL).map(([k, c]) => style(k, c, k === 'table_point' ? 0.6 : 1)).join('') +
-      `<Placemark><name>Timure Taal (report coordinate)</name><Point><coordinates>${TT.LAKE.lon},${TT.LAKE.lat}</coordinates></Point></Placemark>${body}</Document></kml>`;
+      TT.LAKE_IDS.map((id) => [id, TT.lakeCentre(id)]).filter(([, c]) => c).map(([id, c]) => `<Placemark><name>${xml(TT.lakeName(id))} centre</name><Point><coordinates>${c.lon},${c.lat}</coordinates></Point></Placemark>`).join('') +
+      `${body}</Document></kml>`;
     return new Blob([doc], { type: 'application/vnd.google-earth.kml+xml' });
   };
 
@@ -308,7 +309,7 @@
     const keep = new Set(recs.map((r) => r.id));
     return { records: recs, photos: photos.filter((p) => keep.has(p.record)).sort((a, b) => a.id.localeCompare(b.id)), all: records };
   }
-  const fname = async (kind, ext) => `Timure_${kind}_${await TT.deviceCode()}_${TT.stamp()}.${ext}`;
+  const fname = async (kind, ext) => `Lakes_${kind}_${await TT.deviceCode()}_${TT.stamp()}.${ext}`;
   async function makeCtx(all) {
     return { settings: await TT.loadSettings(), records: all, device: await TT.deviceCode() };
   }
@@ -341,11 +342,11 @@
     const feats = TT.collectFeatures(g.records, { pii: false, ctx });
     const files = [
       { name: 'data.json', data: enc.encode(JSON.stringify(body)) },
-      { name: 'Timure_survey_data.xlsx', data: new Uint8Array(await (await TT.buildWorkbook({ ...g, pii: true, ctx })).arrayBuffer()) },
-      { name: 'gis/timure_points.geojson', data: new Uint8Array(await TT.toGeoJSON(feats).arrayBuffer()) },
-      { name: 'gis/timure_points.kml', data: new Uint8Array(await TT.toKML(feats).arrayBuffer()) },
+      { name: 'Lakes_survey_data.xlsx', data: new Uint8Array(await (await TT.buildWorkbook({ ...g, pii: true, ctx })).arrayBuffer()) },
+      { name: 'gis/lakes_points.geojson', data: new Uint8Array(await TT.toGeoJSON(feats).arrayBuffer()) },
+      { name: 'gis/lakes_points.kml', data: new Uint8Array(await TT.toKML(feats).arrayBuffer()) },
       { name: 'README.txt', data: enc.encode([
-        'Timure Taal field data package',
+        'Timure Taal and Chhekmi Taal field data package (lake codes TT and CK)',
         `Exported ${body.exported} from device ${ctx.device}; ${g.records.length} records, ${g.photos.length} photos.`,
         'CONFIDENTIAL: data.json and the Excel file include respondent names/phones where given. Share only within the study team.',
         'data.json + photos/ can be merged into another phone or laptop: open the portal > Data > Import.',
@@ -368,7 +369,7 @@
       if (!zipFiles['data.json']) throw new Error('data.json not found in the ZIP');
       body = JSON.parse(new TextDecoder().decode(zipFiles['data.json']));
     } else body = JSON.parse(await file.text());
-    if (!body || body.app !== TT.APP || !Array.isArray(body.records)) throw new Error('This is not a Timure Taal portal export');
+    if (!body || body.app !== TT.APP || !Array.isArray(body.records)) throw new Error('This is not an export from this field portal');
 
     const local = new Map((await TT.db.all('records')).map((r) => [r.id, r]));
     const res = { added: 0, updated: 0, skipped: 0, unknown: 0, photos: 0 };

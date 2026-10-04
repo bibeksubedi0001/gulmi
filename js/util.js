@@ -3,7 +3,7 @@
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.0.2';
+  TT.VERSION = '1.1.0';
   TT.APP = 'timure-taal-portal';
 
   TT.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,22 +40,9 @@
   };
   const h = TT.h;
 
-  // Bilingual text: {ne, en} -> two spans; the body class decides what shows.
-  TT.L = function (t) {
-    if (t == null) return null;
-    if (typeof t !== 'object') return document.createTextNode(String(t));
-    const f = document.createDocumentFragment();
-    if (t.ne && t.en) f.append(h('span.ne', { text: t.ne }), h('span.en', { text: t.en }));
-    else f.append(document.createTextNode(t.en || t.ne || ''));
-    return f;
-  };
-  TT.Ls = (t, lang) => {
-    if (t == null) return '';
-    if (typeof t !== 'object') return String(t);
-    if (lang === 'ne') return t.ne || t.en || '';
-    if (lang === 'both' && t.ne && t.en) return `${t.ne} / ${t.en}`;
-    return t.en || t.ne || '';
-  };
+  // English only: {ne, en} objects render their English text.
+  TT.L = (t) => (t == null ? null : document.createTextNode(typeof t === 'object' ? t.en || t.ne || '' : String(t)));
+  TT.Ls = (t) => (t == null ? '' : typeof t === 'object' ? t.en || t.ne || '' : String(t));
 
   /* ---------- icons (24x24 line icons, drawn for this portal) ---------- */
   const C = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;

@@ -1,9 +1,8 @@
-/* Timure Taal field portal: GPS capture and WGS84 -> UTM (Kruger series). */
+/* Lakes field portal: GPS capture and WGS84 -> UTM (Kruger series). */
 'use strict';
 (function () {
   const TT = window.TT;
 
-  TT.LAKE = { lat: 28.10051389, lon: 83.37936389, name: 'Timure Taal' };
   TT.UTM_ZONE = 44; // EPSG:32644, as used in the QGIS catchment work
 
   // WGS84 -> UTM north (Karney 2011 / Kruger n^3 series; sub-millimetre within a zone).

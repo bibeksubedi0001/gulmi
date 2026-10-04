@@ -1,14 +1,14 @@
 {
-  "name": "Timure Taal Field Investigation Portal",
-  "short_name": "Timure Taal",
-  "description": "Offline bilingual community questionnaire and engineering survey portal for the Timure Taal declining water-level investigation, Chandrakot, Gulmi.",
+  "name": "Timure & Chhekmi Lakes Field Portal",
+  "short_name": "Gulmi Lakes",
+  "description": "Offline community questionnaire and engineering survey portal for the declining water levels of Timure Taal and Chhekmi Taal, Gulmi.",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f2f6f7",
   "theme_color": "#084c55",
-  "lang": "ne",
+  "lang": "en",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },

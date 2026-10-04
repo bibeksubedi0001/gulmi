@@ -1,8 +1,8 @@
-/* Timure Taal field portal: analysis + dashboard (progress, map, water level, community evidence, timeline, hypotheses). */
+/* Lakes field portal: analysis + dashboard (per lake or both lakes). */
 'use strict';
 (function () {
   const TT = window.TT;
-  const { h, L, icon } = TT;
+  const { h, L } = TT;
   const n = TT.num;
   const NS = 'http://www.w3.org/2000/svg';
   const s = (tag, attrs = {}, ...kids) => {
@@ -18,8 +18,9 @@
       const st = (ctx && ctx.settings) || {};
       const evap = n(st.evap) ?? 4, tol = n(st.evapTol) ?? 2;
       const pts = records.filter((r) => r.form === 'wl' && n(r.data.reading) != null && r.data.dt).map((r) => {
-        const z = TT.gaugeZero(ctx, r.data.gauge);
-        return { id: r.id, gauge: String(r.data.gauge || '?').trim().toUpperCase(), t: new Date(r.data.dt), reading: n(r.data.reading), wsl: z != null ? TT.round(z + n(r.data.reading), 3) : null, rain: r.data.rain_since || '' };
+        const z = TT.gaugeZero(ctx, r.data.gauge, r.data.lake);
+        const gauge = `${TT.lakeCode(r.data.lake) || '?'} ${String(r.data.gauge || '?').trim().toUpperCase()}`;
+        return { id: r.id, gauge, t: new Date(r.data.dt), reading: n(r.data.reading), wsl: z != null ? TT.round(z + n(r.data.reading), 3) : null, rain: r.data.rain_since || '' };
       }).filter((p) => !isNaN(p.t));
       pts.sort((a, b) => a.gauge.localeCompare(b.gauge) || a.t - b.t);
       for (let i = 1; i < pts.length; i++) {
@@ -51,7 +52,7 @@
         });
         return { base, items: f.options.map((o) => ({ o, n: m.get(o.v) || 0 })).filter((x) => x.n) };
       };
-      const years = new Map(), srcFirst = new Map();
+      const years = new Map(), srcFirst = new Map(), borda = new Map(), periods = {};
       hh.forEach((r) => {
         const y = parseInt(r.data.first_noticed, 10);
         if (r.data.noticed === 'yes' && y) {
@@ -59,27 +60,16 @@
           const src = r.data.first_noticed__src || 'untagged';
           srcFirst.set(src, (srcFirst.get(src) || 0) + 1);
         }
+        (r.data.cause_rank || []).forEach((c, i) => { if (c) borda.set(c, (borda.get(c) || 0) + (3 - i)); });
+        Object.entries(r.data.levels || {}).forEach(([row, o]) => {
+          const x = parseInt(o && o.dry, 10);
+          if (x) (periods[row] = periods[row] || []).push(x);
+        });
       });
-      const borda = new Map();
-      hh.forEach((r) => (r.data.cause_rank || []).forEach((c, i) => { if (c) borda.set(c, (borda.get(c) || 0) + (3 - i)); }));
-      const rate = {};
-      hh.forEach((r) => Object.entries(r.data.cause_rate || {}).forEach(([c, o]) => {
-        rate[c] = rate[c] || { main: 0, contrib: 0, unlikely: 0, dk: 0 };
-        if (o && o.r && rate[c][o.r] != null) rate[c][o.r]++;
-      }));
-      const gridMeans = (key, cols) => {
-        const acc = {};
-        hh.forEach((r) => Object.entries(r.data[key] || {}).forEach(([row, o]) => cols.forEach((c) => {
-          const x = parseInt(o && o[c], 10);
-          if (x) { acc[row] = acc[row] || {}; (acc[row][c] = acc[row][c] || []).push(x); }
-        })));
-        return acc;
-      };
       return {
-        N: hh.length, years, srcFirst, borda, rate,
-        timeline: gridMeans('timeline', ['dry', 'wet']), seasonal: gridMeans('seasonal', ['before', 'now']),
-        eq: count('eq_change'), eqBasis: count('eq_basis'), pattern: count('pattern'), others: count('other_sources'),
-        conAfter: count('con_after'), wallow: count('wallow'),
+        N: hh.length, years, srcFirst, borda, periods,
+        eq: count('eq_change'), pattern: count('pattern'), others: count('other_sources'), conAfter: count('con_after'),
+        wallow: count('wallow'), outlet: count('outlet'), downWet: count('down_wet'), pathClosed: count('path_closed'),
       };
     },
   };
@@ -93,7 +83,7 @@
       h('div.bar-v', { text: fmt ? fmt(i) : total ? `${i.n} (${Math.round((100 * i.n) / total)}%)` : String(i.n) }))));
   }
 
-  // Minimal SVG line/scatter chart. series: [{name, color, pts:[{x,y}], dash}], markers: [{x,label}]
+  // Minimal SVG line chart with square point markers. series: [{name, color, pts:[{x,y,title}], dash}]
   function chart({ series, markers = [], xMin, xMax, yMin, yMax, xFmt = String, yFmt = String, yTicks, height = 240, xTicks }) {
     const W = 720, H = height, m = { l: 52, r: 14, t: 14, b: 34 };
     const all = series.flatMap((se) => se.pts);
@@ -107,10 +97,9 @@
     const X = (x) => m.l + ((x - xMin) / (xMax - xMin)) * (W - m.l - m.r);
     const Y = (y) => H - m.b - ((y - yMin) / (yMax - yMin)) * (H - m.t - m.b);
     const g = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img' });
-    const yt = yTicks || Array.from({ length: 5 }, (_, i) => yMin + ((yMax - yMin) * i) / 4);
-    yt.forEach((y) => g.append(s('line', { x1: m.l, x2: W - m.r, y1: Y(y), y2: Y(y), class: 'grid' }), s('text', { x: m.l - 6, y: Y(y) + 4, 'text-anchor': 'end', class: 'tick' }, yFmt(y))));
-    const xt = xTicks || Array.from({ length: 6 }, (_, i) => xMin + ((xMax - xMin) * i) / 5);
-    xt.forEach((x) => g.append(s('text', { x: X(x), y: H - m.b + 18, 'text-anchor': 'middle', class: 'tick' }, xFmt(x))));
+    (yTicks || Array.from({ length: 5 }, (_, i) => yMin + ((yMax - yMin) * i) / 4)).forEach((y) => g.append(
+      s('line', { x1: m.l, x2: W - m.r, y1: Y(y), y2: Y(y), class: 'grid' }), s('text', { x: m.l - 6, y: Y(y) + 4, 'text-anchor': 'end', class: 'tick' }, yFmt(y))));
+    (xTicks || Array.from({ length: 6 }, (_, i) => xMin + ((xMax - xMin) * i) / 5)).forEach((x) => g.append(s('text', { x: X(x), y: H - m.b + 18, 'text-anchor': 'middle', class: 'tick' }, xFmt(x))));
     g.append(s('line', { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: 'axis' }));
     markers.forEach((mk) => {
       if (mk.x < xMin || mk.x > xMax) return;
@@ -118,14 +107,13 @@
     });
     series.forEach((se) => {
       const pts = [...se.pts].sort((a, b) => a.x - b.x);
-      if (se.line !== false && pts.length > 1) g.append(s('polyline', { points: pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(' '), fill: 'none', stroke: se.color, 'stroke-width': 2.2, 'stroke-dasharray': se.dash || null }));
+      if (pts.length > 1) g.append(s('polyline', { points: pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(' '), fill: 'none', stroke: se.color, 'stroke-width': 2.2, 'stroke-dasharray': se.dash || null }));
       pts.forEach((p) => g.append(s('rect', { x: X(p.x) - 3.5, y: Y(p.y) - 3.5, width: 7, height: 7, fill: p.color || se.color }, s('title', {}, p.title || `${xFmt(p.x)}: ${yFmt(p.y)}`))));
     });
-    const legend = h('div.legend', ...series.map((se) => h('span', h('i', { style: { background: se.color } }), se.name)));
-    return h('div.chart-wrap', g, series.length > 1 || series[0].name ? legend : null);
+    return h('div.chart-wrap', g, h('div.legend', ...series.map((se) => h('span', h('i', { style: { background: se.color } }), se.name))));
   }
 
-  // Vertical histogram over BS years.
+  // Bars per BS year, with the 2072 earthquake year highlighted.
   function yearHist(map, { from, to, mark = 2072 }) {
     const W = 720, H = 200, m = { l: 34, r: 8, t: 10, b: 30 };
     const yrs = [];
@@ -162,24 +150,27 @@
     return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(',')})`;
   };
 
-  async function buildMap(el, records) {
+  async function buildMap(el, records, lake) {
     await TT.loadCss('vendor/leaflet/leaflet.css');
     await TT.loadScript('vendor/leaflet/leaflet.js');
     const L_ = window.L;
     const square = (color, size) => L_.divIcon({ className: 'mk', html: `<i style="background:${color};width:${size}px;height:${size}px"></i>`, iconSize: [size + 4, size + 4] });
-    const map = L_.map(el, { scrollWheelZoom: false }).setView([TT.LAKE.lat, TT.LAKE.lon], 17);
+    const centres = TT.LAKE_IDS.map((id) => [id, TT.lakeCentre(id)]).filter(([, c]) => c);
+    const start = TT.lakeCentre(lake) || TT.lakeCentre('timure');
+    const map = L_.map(el, { scrollWheelZoom: false }).setView([start.lat, start.lon], lake === 'all' ? 12 : 17);
     const imagery = L_.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 20, maxNativeZoom: 18, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }).addTo(map);
     const osm = L_.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, maxNativeZoom: 19, attribution: '© OpenStreetMap contributors' });
     const overlays = {};
     try {
       const ref = await (await fetch('data/reference.geojson')).json();
-      overlays['Reference (OSM lake outline, road, path)'] = L_.geoJSON(ref, {
+      overlays['Timure reference (OSM lake outline, road, path)'] = L_.geoJSON(ref, {
         style: (f) => f.properties.kind === 'lake_outline' ? { color: '#4fd1ff', weight: 2, fillOpacity: 0.08 } : f.properties.kind === 'road' ? { color: '#ffd166', weight: 3 } : { color: '#ffffff', weight: 2, dashArray: '4 4' },
-        pointToLayer: (f, ll) => L_.marker(ll, { icon: square('#0aa2c0', 10) }),
+        filter: (f) => f.properties.kind !== 'lake_point',
         onEachFeature: (f, layer) => layer.bindTooltip(f.properties.name),
       }).addTo(map);
     } catch (e) { /* offline without cache: map still works */ }
+    const lakes = L_.layerGroup(centres.map(([id, c]) => L_.marker([c.lat, c.lon], { icon: square('#0aa2c0', 12) }).bindTooltip(`${TT.lakeName(id)} centre`))).addTo(map);
 
     const feats = TT.collectFeatures(records, { pii: false, ctx: { records } });
     const groups = { record: L_.layerGroup(), point: L_.layerGroup(), bath: L_.layerGroup(), line: L_.layerGroup() };
@@ -188,43 +179,43 @@
     for (const f of feats) {
       const p = f.properties;
       if (f.geometry.type === 'LineString') {
-        const ll = f.geometry.coordinates.map((c) => [c[1], c[0]]);
-        L_.polyline(ll, { color: p.kind === 'transect' ? '#7fdbff' : p.kind === 'lining_segment' ? '#ff6b6b' : '#ffd166', weight: 3 }).bindTooltip(`${p.record_id} ${p.kind}`).addTo(groups.line);
+        L_.polyline(f.geometry.coordinates.map((c) => [c[1], c[0]]), { color: p.kind === 'transect' ? '#7fdbff' : '#ffd166', weight: 3 }).bindTooltip(`${p.record_id} ${p.kind}`).addTo(groups.line);
         continue;
       }
       const [lon, lat] = f.geometry.coordinates;
-      if (TT.distM(TT.LAKE, { lat, lon }) < 5000) near.push([lat, lon]);
-      const pop = h('div.pop', h('b', { text: p.record_id }), h('div', { text: p.form_title }), p.summary && h('div', { text: p.summary }),
+      if (!centres.length || centres.some(([, c]) => TT.distM(c, { lat, lon }) < 5000)) near.push([lat, lon]);
+      const pop = h('div.pop', h('b', { text: p.record_id }), h('div', { text: `${p.form_title} · ${TT.lakeName(p.lake)}` }), p.summary && h('div', { text: p.summary }),
         p.kind === 'point' && h('div.muted', { text: p.question }), p.kind === 'table_point' && h('div', { text: `row ${p.row}${p.depth_m != null ? ` · depth ${p.depth_m} m` : ''}${p.bedrl_m ? ` · bed RL ${p.bedrl_m}` : ''}` }),
         h('a', { href: '#/edit/' + encodeURIComponent(p.record_id), text: 'Open record' }));
-      if (p.kind === 'table_point' && p.table === 'soundings') {
-        L_.marker([lat, lon], { icon: square(depthCol(n(p.depth_m) || 0, maxDepth), 8) }).bindPopup(pop).addTo(groups.bath);
-      } else if (p.kind === 'record') {
-        L_.marker([lat, lon], { icon: square(GROUP_COL[p.group] || '#555', 13) }).bindPopup(pop).addTo(groups.record);
-      } else {
-        L_.marker([lat, lon], { icon: square(p.group === 'community' ? '#f2b56b' : '#5fc59b', 9) }).bindPopup(pop).addTo(groups.point);
-      }
+      if (p.kind === 'table_point' && p.table === 'soundings') L_.marker([lat, lon], { icon: square(depthCol(n(p.depth_m) || 0, maxDepth), 8) }).bindPopup(pop).addTo(groups.bath);
+      else if (p.kind === 'record') L_.marker([lat, lon], { icon: square(GROUP_COL[p.group] || '#555', 13) }).bindPopup(pop).addTo(groups.record);
+      else L_.marker([lat, lon], { icon: square(p.group === 'community' ? '#f2b56b' : '#5fc59b', 9) }).bindPopup(pop).addTo(groups.point);
     }
     Object.values(groups).forEach((g) => g.addTo(map));
     L_.control.layers({ 'Satellite imagery': imagery, OpenStreetMap: osm }, {
-      ...overlays, 'Records (orange = community, green = engineering)': groups.record, 'Other GPS points (shoreline, inflow, cracks …)': groups.point,
-      'Bathymetry soundings (darker = deeper)': groups.bath, 'Transects, lining segments, runoff paths': groups.line }, { collapsed: true }).addTo(map);
+      ...overlays, 'Lake centres': lakes, 'Records (orange = community, green = engineering)': groups.record, 'Other GPS points': groups.point,
+      'Soundings (darker = deeper)': groups.bath, 'Transects and runoff paths': groups.line }, { collapsed: true }).addTo(map);
     L_.control.scale({ imperial: false }).addTo(map);
-    if (near.length) map.fitBounds(L_.latLngBounds([...near, [TT.LAKE.lat, TT.LAKE.lon]]).pad(0.15), { maxZoom: 18 });
+    const fit = [...near, ...(lake === 'all' ? centres : centres.filter(([id]) => id === lake)).map(([, c]) => [c.lat, c.lon])];
+    if (fit.length > 1) map.fitBounds(L_.latLngBounds(fit).pad(0.15), { maxZoom: 18 });
     setTimeout(() => map.invalidateSize(), 50);
-    return { map, total: feats.length, far: feats.filter((f) => f.geometry.type === 'Point').length - near.length };
+    return { total: feats.length, far: feats.filter((f) => f.geometry.type === 'Point').length - near.length };
   }
 
   /* ============================ dashboard view ============================ */
-  const card = (title, ...kids) => h('section.card.dash-card', h('h3', L(title)), ...kids);
+  const card = (title, ...kids) => h('section.card.dash-card', h('h3', { text: title }), ...kids);
   const kv = (k, v) => h('div.kv', h('span', { text: k }), h('b', { text: v }));
 
-  TT.renderDashboard = async function (root, ctx) {
-    const records = ctx.records;
+  TT.renderDashboard = async function (root, ctx, lake = ctx.settings.activeLake || 'all') {
+    const recordsAll = ctx.records;
+    const records = lake === 'all' ? recordsAll : recordsAll.filter((r) => r.data.lake === lake || r.data.lake === 'both');
     const photos = await TT.db.all('photos');
-    const settings = ctx.settings;
-    root.replaceChildren(h('div.page-head', h('h1', L({ ne: 'फिल्ड ड्यासबोर्ड', en: 'Field dashboard' })),
-      h('p.muted', { text: `${records.length} records · ${records.filter((r) => r.status === 'complete').length} complete · ${photos.length} photos on this device. Merge other phones' packages (Data → Import) to see the whole team.` })));
+    const lakes = lake === 'all' ? TT.LAKE_IDS.length : 1;
+    const pick = h('select.inp.sm', { 'aria-label': 'Lake', style: { width: 'auto', flex: 'none' } }, h('option', { value: 'all', text: 'Both lakes' }), ...TT.O.lake.map((o) => h('option', { value: o.v, text: o.en })));
+    pick.value = lake;
+    pick.addEventListener('change', () => TT.renderDashboard(root, ctx, pick.value));
+    root.replaceChildren(h('div.page-head', h('h1', { text: 'Dashboard' }),
+      h('div.btn-row', pick, h('span.muted', { text: `${records.length} records · ${records.filter((r) => r.status === 'complete').length} complete · ${photos.length} photos on this device. Import the other phones’ packages to see the whole team.` }))));
 
     /* progress */
     const prog = h('div.prog-grid');
@@ -232,117 +223,89 @@
       const f = TT.FORMS[id];
       const recs = records.filter((r) => r.form === id);
       const done = recs.filter((r) => r.status === 'complete').length;
-      const pct = Math.min(100, (100 * done) / (f.target || 1));
+      const target = (f.target || 1) * lakes;
       prog.append(h('a.prog-item', { href: '#/records?form=' + id },
-        h('div.prog-top', TT.icon(f.icon || 'file'), h('b', { text: f.short }), h('span.muted', { text: `${done}/${f.target || '—'} ${f.targetLabel || ''}` })),
+        h('div.prog-top', TT.icon(f.icon || 'file'), h('b', { text: f.short }), h('span.muted', { text: `${done}/${target} ${f.targetLabel || ''}` })),
         h('div.prog-name', L(f.title)),
-        h('div.prog-bar', h('i', { style: { width: pct + '%' } })),
+        h('div.prog-bar', h('i', { style: { width: Math.min(100, (100 * done) / target) + '%' } })),
         recs.length > done && h('small.muted', { text: `${recs.length - done} draft` })));
     }
-    root.append(card({ ne: 'प्रगति (लक्ष्यको तुलनामा)', en: 'Progress against targets' }, prog));
+    root.append(card('Progress against one-day targets', prog));
 
     /* map */
     const mapEl = h('div.map');
     const mapNote = h('p.muted.sm');
-    root.append(card({ ne: 'नक्सा', en: 'Map of all geolocated data' }, mapEl, mapNote));
-    buildMap(mapEl, records).then((r) => { mapNote.textContent = `${r.total} features. ${r.far > 0 ? r.far + ' point(s) more than 5 km from the lake are not used to zoom (test or mistaken fixes?). ' : ''}Satellite tiles need a connection.`; })
-      .catch((e) => { mapNote.textContent = 'Map unavailable: ' + e.message; });
+    root.append(card('Map', mapEl, mapNote));
+    buildMap(mapEl, records, lake).then((r) => {
+      mapNote.textContent = `${r.total} features.${r.far > 0 ? ` ${r.far} point(s) more than 5 km from a lake centre are not used for zooming.` : ''} Satellite tiles need a connection.${TT.lakeCentre('chhekmi') ? '' : ' Chhekmi centre not set yet (Data page).'}`;
+    }).catch((e) => { mapNote.textContent = 'Map unavailable: ' + e.message; });
 
     /* water level */
-    const wl = TT.analysis.waterLevel(records, ctx);
-    const wlCard = card({ ne: 'तालको पानीको सतह', en: 'Lake water level' });
-    if (!wl.length) wlCard.append(h('p.muted', { text: 'No water-level readings yet. Install and level a staff gauge (Benchmark form), then log readings morning and evening.' }));
+    const wl = TT.analysis.waterLevel(records, { ...ctx, records: recordsAll });
+    const wlCard = card('Water level');
+    if (!wl.length) wlCard.append(h('p.muted', { text: 'No readings yet. Level a staff gauge (Benchmark form), then read it morning, midday and evening.' }));
     else {
       const gauges = [...new Set(wl.map((p) => p.gauge))];
-      const pal = ['#0b6e79', '#d9822b', '#7b4fa6', '#2a7de1'];
+      const pal = ['#0f5563', '#b5651d', '#5b3a85', '#2f5f8a'];
       const useRL = wl.every((p) => p.wsl != null);
       wlCard.append(chart({
         series: gauges.map((g, i) => ({ name: g + (useRL ? ' (RL m)' : ' (staff m)'), color: pal[i % pal.length],
-          pts: wl.filter((p) => p.gauge === g).map((p) => ({ x: +p.t, y: useRL ? p.wsl : p.reading, color: p.flag && p.flag.startsWith('Fall') ? '#b42318' : null, title: `${p.id} ${TT.fmt(p.t)}: ${useRL ? p.wsl : p.reading} m` })) })),
+          pts: wl.filter((p) => p.gauge === g).map((p) => ({ x: +p.t, y: useRL ? p.wsl : p.reading, color: p.flag && p.flag.startsWith('Fall') ? '#a3221a' : null, title: `${p.id} ${TT.fmt(p.t)}: ${useRL ? p.wsl : p.reading} m` })) })),
         xFmt: (x) => { const d = new Date(x); return `${d.getMonth() + 1}/${d.getDate()} ${TT.pad(d.getHours())}h`; }, yFmt: (y) => y.toFixed(3),
       }));
-      const flagged = wl.filter((p) => p.flag);
-      wlCard.append(h('p.muted.sm', { text: `Recession screening: fall rate between consecutive readings ≥ 6 h apart is compared with assumed open-water evaporation ${settings.evap} mm/day + tolerance ${settings.evapTol} mm/day (change in Data → Settings). Evaporation is concentrated in daytime, so compare like-for-like intervals (e.g. evening→morning). Red points = flagged falls.` }));
-      const tbl = h('table.tbl.compact', h('thead', h('tr', ...['Reading', 'Gauge', 'Time', 'Staff m', 'RL m', 'Δt h', 'Fall mm/d', 'Rain', 'Screening'].map((x) => h('th', { text: x })))),
-        h('tbody', ...wl.slice(-40).reverse().map((p) => h('tr' + (p.flag && p.flag.startsWith('Fall') ? '.flag' : ''),
-          h('td', h('a', { href: '#/edit/' + p.id, text: p.id })), h('td', { text: p.gauge }), h('td', { text: TT.fmt(p.t) }), h('td', { text: p.reading.toFixed(3) }),
-          h('td', { text: p.wsl != null ? p.wsl.toFixed(3) : '' }), h('td', { text: p.dtH ?? '' }), h('td', { text: p.rate ?? '' }), h('td', { text: p.rain }), h('td', { text: p.flag || '' })))));
-      wlCard.append(h('div.tbl-scroll', tbl));
-      if (flagged.length) wlCard.append(h('p', h('b', { text: `${flagged.filter((f) => f.flag.startsWith('Fall')).length} interval(s) flagged for unexplained fall.` })));
+      const head = h('thead', h('tr', ...['Reading', 'Gauge', 'Time', 'Staff m', 'RL m', 'Δt h', 'Fall mm/d', 'Rain', 'Screening'].map((x) => h('th', { text: x }))));
+      const body = h('tbody', ...wl.slice(-40).reverse().map((p) => h('tr' + (p.flag && p.flag.startsWith('Fall') ? '.flag' : ''),
+        h('td', h('a', { href: '#/edit/' + p.id, text: p.id })), h('td', { text: p.gauge }), h('td', { text: TT.fmt(p.t) }), h('td', { text: p.reading.toFixed(3) }),
+        h('td', { text: p.wsl != null ? p.wsl.toFixed(3) : '' }), h('td', { text: p.dtH ?? '' }), h('td', { text: p.rate ?? '' }), h('td', { text: p.rain }), h('td', { text: p.flag || '' }))));
+      wlCard.append(h('p.muted.sm', { text: `Falls between readings at least 6 h apart are compared with evaporation ${ctx.settings.evap} mm/day + ${ctx.settings.evapTol} mm/day (Data page). Red = unexplained fall.` }),
+        h('div.tbl-scroll', h('table.tbl.compact', head, body)));
     }
     root.append(wlCard);
 
     /* community */
     const c = TT.analysis.community(records);
-    const com = card({ ne: 'समुदायबाट प्राप्त प्रमाण', en: 'Community evidence (household interviews)' });
-    if (!c.N) com.append(h('p.muted', { text: 'No consenting household interviews yet.' }));
+    const com = card('Community evidence');
+    if (!c.N) com.append(h('p.muted', { text: 'No household interviews with consent yet.' }));
     else {
-      const noticed = [...c.years.values()].reduce((a, b) => a + b, 0);
       const ys = [...c.years.keys()];
-      com.append(h('p', { text: `${c.N} interviews with consent; ${noticed} respondents gave a year when they first noticed the decline.` }));
+      com.append(h('p', { text: `${c.N} interviews; ${[...c.years.values()].reduce((a, b) => a + b, 0)} gave the year they first noticed the decline.` }));
       if (ys.length) {
-        com.append(h('h4', { text: 'Year the decline was first noticed (BS; 2072 = 2015 earthquake year highlighted)' }),
+        com.append(h('h4', { text: 'Year the decline was first noticed (BS; 2072 = 2015 earthquake highlighted)' }),
           yearHist(c.years, { from: Math.min(2062, ...ys), to: Math.max(TT.bsYearOf(), ...ys) }),
           h('p.muted.sm', { text: 'How they know: ' + [...c.srcFirst.entries()].map(([k, v]) => `${k === 'untagged' ? 'not tagged' : TT.optLabel({ options: TT.O.src }, k)} ${v}`).join(' · ') }));
       }
+      const pLabels = { pre: 'Before 2072', mid: '2072–2079', now: 'Last two years' };
+      const per = Object.keys(pLabels).filter((k) => c.periods[k]).map((k) => ({ label: { en: pLabels[k] }, n: TT.mean(c.periods[k]), count: c.periods[k].length }));
+      if (per.length) com.append(h('h4', { text: 'Dry-season water level by period (mean; 5 = full, 1 = dry)' }), bars(per, { fmt: (i) => `${i.n.toFixed(1)} (n=${i.count})` }));
       const grid2 = h('div.grid2');
-      const sub = (title, d) => h('div', h('h4', L(title)), d.items.length ? bars(d.items.map((x) => ({ label: x.o, n: x.n })), { total: d.base }) : h('p.muted', { text: 'No answers yet.' }));
-      grid2.append(
-        sub({ ne: 'भूकम्पपछि तालमा परिवर्तन', en: 'Change after the 2072 earthquake' }, c.eq),
-        sub({ ne: 'भूकम्पलाई कारण मान्ने आधार', en: 'Basis for linking the earthquake' }, c.eqBasis),
-        sub({ ne: 'पानी घट्ने ढाँचा', en: 'Pattern of decline' }, c.pattern),
-        sub({ ne: 'गाउँका अरू स्रोत पनि घटेका?', en: 'Other village water sources also declined? (climate test)' }, c.others),
-        sub({ ne: 'कंक्रिटपछि के भयो?', en: 'What happened after the concrete work' }, c.conAfter),
-        sub({ ne: 'भैंसी आहाल', en: 'Buffalo wallowing' }, c.wallow));
+      const sub = (title, d) => h('div', h('h4', { text: title }), d.items.length ? bars(d.items.map((x) => ({ label: x.o, n: x.n })), { total: d.base }) : h('p.muted', { text: 'No answers yet.' }));
+      grid2.append(sub('Change after the 2072 earthquake', c.eq), sub('Pattern of decline', c.pattern), sub('Other village springs / taps declined? (climate test)', c.others),
+        sub('Water level after the concrete work', c.conAfter), sub('Old inflow path blocked?', c.pathClosed), sub('Wet ground / seepage below the lake?', c.downWet),
+        sub('Outlet / overflow', c.outlet), sub('Buffalo wallowing', c.wallow));
       com.append(grid2);
-
-      const tlPts = (col) => Object.entries(c.timeline).filter(([, o]) => o[col]).map(([y, o]) => ({ x: +y, y: TT.mean(o[col]), title: `${TT.bsLabel(+y)}: mean ${TT.mean(o[col]).toFixed(2)} (n=${o[col].length})` }));
-      const tlYears = Object.keys(c.timeline).map(Number);
-      const tlTicks = [];
-      if (tlYears.length) {
-        const a = Math.min(...tlYears), b = Math.max(...tlYears), step = Math.max(1, Math.ceil((b - a) / 10));
-        for (let y = a; y <= b; y += step) tlTicks.push(y);
-      }
-      com.append(h('h4', { text: 'Reconstructed lake condition by year (mean of respondents; 5 = full, 1 = dry; hover a point for n)' }),
-        chart({ series: [{ name: 'Dry season (Chaitra–Jestha)', color: '#b5541c', pts: tlPts('dry') }, { name: 'After monsoon (Bhadra–Asoj)', color: '#0b6e79', pts: tlPts('wet') }],
-          yMin: 1, yMax: 5, yTicks: [1, 2, 3, 4, 5], xTicks: tlTicks.length ? tlTicks : null, xFmt: (x) => String(Math.round(x)), yFmt: (y) => String(Math.round(y)), markers: [{ x: 2072, label: '2072 earthquake' }] }));
-      const sePts = (col) => Object.entries(c.seasonal).filter(([, o]) => o[col]).map(([mo, o]) => ({ x: +mo, y: TT.mean(o[col]), title: `${TT.O.months[mo - 1].en}: ${TT.mean(o[col]).toFixed(2)} (n=${o[col].length})` }));
-      com.append(h('h4', { text: 'Seasonal calendar: before the decline vs now (month 1 = Baisakh)' }),
-        chart({ series: [{ name: 'Before the decline', color: '#0b6e79', pts: sePts('before') }, { name: 'Now (last 12 months)', color: '#b42318', pts: sePts('now'), dash: '6 4' }],
-          xMin: 1, xMax: 12, xTicks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], yMin: 1, yMax: 5, yTicks: [1, 2, 3, 4, 5], xFmt: (x) => TT.O.months[Math.round(x) - 1].ne, yFmt: (y) => String(Math.round(y)) }));
       const causeItems = TT.O.causes.map((o) => ({ label: o, n: c.borda.get(o.v) || 0 })).filter((x) => x.n).sort((a, b) => b.n - a.n);
-      com.append(h('h4', { text: 'Perceived causes — rank score (1st = 3, 2nd = 2, 3rd = 1 points)' }), causeItems.length ? bars(causeItems) : h('p.muted', { text: 'No rankings yet.' }));
-      const rateRows = TT.O.causes.filter((o) => c.rate[o.v]).map((o) => {
-        const r = c.rate[o.v], tot = r.main + r.contrib + r.unlikely + r.dk;
-        return h('div.stack-row', h('div.bar-l', L(o)), h('div.stack', ...['main', 'contrib', 'unlikely', 'dk'].map((k) => r[k] ? h('i.st-' + k, { style: { width: `${(100 * r[k]) / tot}%` }, title: `${k}: ${r[k]}` }) : null)), h('div.bar-v', { text: `${r.main}/${tot} main` }));
-      });
-      if (rateRows.length) com.append(h('h4', { text: 'Prompted rating of each cause' }), h('div.stack-legend', ...['main', 'contrib', 'unlikely', 'dk'].map((k) => h('span', h('i.st-' + k), { main: 'Main', contrib: 'Contributing', unlikely: 'Unlikely', dk: "Don't know" }[k]))), ...rateRows);
-      com.append(h('p.muted.sm', { text: 'Community perception is evidence of what people observed and believe — it is weighed against physical measurements in the hypothesis matrix, not used as proof by itself.' }));
+      com.append(h('h4', { text: 'Perceived causes — rank score (1st = 3, 2nd = 2, 3rd = 1)' }), causeItems.length ? bars(causeItems) : h('p.muted', { text: 'No rankings yet.' }),
+        h('p.muted.sm', { text: 'What people observed and believe is weighed against the measurements in the hypothesis matrix; it is not proof by itself.' }));
     }
     root.append(com);
 
-    /* integrated timeline */
-    root.append(card({ ne: 'एकीकृत समयरेखा', en: 'Integrated timeline: decline vs works and events' }, integratedTimeline(records, c)));
-
-    /* engineering summaries */
-    root.append(card({ ne: 'इन्जिनियरिङ सारांश', en: 'Engineering summaries' }, engSummary(records)));
-
-    /* hypotheses */
-    root.append(card({ ne: 'परिकल्पना–प्रमाण', en: 'Hypothesis–evidence matrix (latest assessment)' }, hypSummary(records)));
+    root.append(card('Timeline: decline vs works and events', timeline(records, c)));
+    root.append(card('Engineering summary', engSummary(records, lakes)));
+    root.append(card('Cause ranking (latest hypothesis matrix)', hypSummary(records)));
   };
 
-  function integratedTimeline(records, c) {
+  function timeline(records, c) {
     const works = new Map(), hhCon = new Map();
-    records.filter((r) => r.form === 'hist').forEach((r) => { const y = parseInt(r.data.year_start, 10); if (y) works.set(y, (works.get(y) || 0) + 1); });
+    records.filter((r) => r.form === 'kii').forEach((r) => (r.data.k_works || []).forEach((w) => { const y = parseInt(w.year, 10); if (y) works.set(y, (works.get(y) || 0) + 1); }));
     records.filter((r) => r.form === 'hh').forEach((r) => { const y = parseInt(r.data.con_year, 10); if (y) hhCon.set(y, (hhCon.get(y) || 0) + 1); });
     const yrs = [...c.years.keys(), ...works.keys(), ...hhCon.keys(), 2072];
     const from = Math.min(2062, ...yrs), to = Math.max(TT.bsYearOf(), ...yrs);
     const lanes = [
-      ['Community: first noticed decline', c.years, 'b-com', 'respondent(s) first noticed the decline'],
-      ['Community: year of concrete work', hhCon, 'b-con', 'respondent(s) dated the concrete work'],
-      ['Recorded works (CH register)', works, 'b-work', 'work(s) recorded'],
+      ['First noticed the decline (HH)', c.years, 'b-com', 'respondent(s) first noticed the decline'],
+      ['Year of concrete work (HH)', hhCon, 'b-con', 'respondent(s) dated the concrete work'],
+      ['Works listed by key informants', works, 'b-work', 'work(s) listed'],
     ];
-    const W = 720, rowH = 48, m = { l: 168, r: 10, t: 8 };
+    const W = 720, rowH = 48, m = { l: 178, r: 10, t: 8 };
     const H = m.t + (lanes.length + 1) * rowH + 22;
     const cw = (W - m.l - m.r) / (to - from + 1);
     const X = (y) => m.l + (y - from) * cw;
@@ -366,49 +329,51 @@
     events.forEach(([y, a]) => g.append(s('rect', { x: X(+y) + cw / 2 - 1.5, y: evBase - rowH + 10, width: 3, height: rowH - 14, class: +y === 2072 || +y === 2080 ? 'b-eq' : 'b-ev' }, s('title', {}, `${TT.bsLabel(+y)}: ${a.en}`))));
     return h('div', g,
       h('p.muted.sm', { text: 'Events: ' + events.map(([y, a]) => `${y} ${a.en}`).join(' · ') }),
-      h('p.muted.sm', { text: 'Bar height = count in that year, scaled within each row (number above each bar). If the first-noticed peak precedes the concrete-work years, H2 is weakened; if it coincides with 2072 only by timing, H4 still needs physical evidence.' }));
+      h('p.muted.sm', { text: 'If the first-noticed peak comes before the concrete-work years, H2 is weakened; if it matches 2072 only in timing, H4 still needs physical evidence.' }));
   }
 
-  function engSummary(records) {
+  function engSummary(records, lakes) {
     const by = (f) => records.filter((r) => r.form === f);
     const wrap = h('div.grid2');
     const soil = by('soil');
-    const zt = { A: '3–4', B: '2–3', C: '2–3', D: '1–2', E: '1–2' };
-    wrap.append(h('div', h('h4', { text: `Soil samples (${soil.length}; target 10–15 + 4–6 cores)` }),
-      bars(Object.keys(zt).map((z) => ({ label: { en: `Zone ${z} (target ${zt[z]})` }, n: soil.filter((r) => r.data.zone === z).length }))),
-      h('p.muted.sm', { text: `Undisturbed cores: ${soil.filter((r) => r.data.stype === 'core').length} · auger profiles: ${soil.filter((r) => r.data.stype === 'auger').length}` })));
+    wrap.append(h('div', h('h4', { text: `Soil samples (${soil.length}; target ${6 * lakes})` }),
+      bars(['A', 'B', 'C', 'D', 'E'].map((z) => ({ label: { en: `Zone ${z}` }, n: soil.filter((r) => r.data.zone === z).length }))),
+      h('p.muted.sm', { text: `Cores: ${soil.filter((r) => r.data.stype === 'core').length}` })));
     const inf = by('inf').filter((r) => n(r.data.steady) != null);
-    wrap.append(h('div', h('h4', { text: `Infiltration tests (${by('inf').length})` }), inf.length ? h('table.tbl.compact', h('tbody', ...inf.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.test_id || r.id })), h('td', { text: 'zone ' + (r.data.zone || '?') }), h('td', { text: `${n(r.data.steady).toFixed(1)} mm/h` })))))
+    wrap.append(h('div', h('h4', { text: `Infiltration tests (${by('inf').length})` }), inf.length
+      ? h('table.tbl.compact', h('tbody', ...inf.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.test_id || r.id })), h('td', { text: TT.lakeCode(r.data.lake) }), h('td', { text: 'zone ' + (r.data.zone || '?') }), h('td', { text: `${n(r.data.steady).toFixed(1)} mm/h` })))))
       : h('p.muted', { text: 'No completed tests yet.' })));
     const bath = by('bath');
     const depths = bath.flatMap((r) => (r.data.soundings || []).map((x) => n(x.depth)).filter((x) => x != null));
-    wrap.append(h('div', h('h4', { text: 'Bathymetry' }), kv('Transects', String(bath.length)), kv('Soundings', String(depths.length)), kv('Max depth', depths.length ? Math.max(...depths).toFixed(2) + ' m' : '—'), kv('Mean depth', depths.length ? TT.mean(depths).toFixed(2) + ' m' : '—')));
+    wrap.append(h('div', h('h4', { text: 'Depth' }), kv('Transects', String(bath.length)), kv('Soundings', String(depths.length)),
+      kv('Max depth', depths.length ? Math.max(...depths).toFixed(2) + ' m' : '—'), kv('Mean depth', depths.length ? TT.mean(depths).toFixed(2) + ' m' : '—')));
     const q = by('q').filter((r) => n(r.data.q_adopt) != null);
-    wrap.append(h('div', h('h4', { text: `Discharges (${by('q').length})` }), q.length ? h('table.tbl.compact', h('tbody', ...q.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.site_id || r.id })), h('td', { text: r.data.stype || '' }), h('td', { text: `${n(r.data.q_adopt).toFixed(3)} L/s` })))))
-      : h('p.muted', { text: 'No discharges yet.' })));
+    wrap.append(h('div', h('h4', { text: `Flows (${by('q').length})` }), q.length
+      ? h('table.tbl.compact', h('tbody', ...q.map((r) => h('tr', h('td', h('a', { href: '#/edit/' + r.id, text: r.data.site_id || r.id })), h('td', { text: r.data.stype ? TT.optLabel(TT.FORMS.q.fieldMap.stype, r.data.stype) : '' }), h('td', { text: `${n(r.data.q_adopt).toFixed(3)} L/s` })))))
+      : h('p.muted', { text: 'No flows yet.' })));
     const feat = by('feat');
-    const ftField = TT.FORMS.feat.fieldMap.ftype;
-    const ftc = ftField.options.map((o) => ({ label: o, n: feat.filter((r) => r.data.ftype === o.v).length })).filter((x) => x.n);
-    wrap.append(h('div', h('h4', { text: `Mapped features (${feat.length})` }), ftc.length ? bars(ftc) : h('p.muted', { text: 'None yet.' }),
-      h('p.muted.sm', { text: `Delivering to lake: ${feat.filter((r) => r.data.delivers === 'yes').length} · diverted/blocked: ${feat.filter((r) => ['diverted', 'blocked'].includes(r.data.delivers)).length}` })));
-    const lin = by('lin');
-    const seep = by('seep');
-    wrap.append(h('div', h('h4', { text: 'Lining & seepage indicators' }),
-      kv('Lining segments inspected', String(lin.length)), kv('… outside water ponding against lining (H2)', String(lin.filter((r) => r.data.ponding === 'yes').length)),
-      kv('… inflow blocked by lining', String(lin.filter((r) => r.data.can_cross === 'blocked').length)), kv('… weep holes absent', String(lin.filter((r) => r.data.weep === 'absent').length)),
-      kv('Seepage / wet sites', String(seep.length)), kv('… below lake level and flowing (H3)', String(seep.filter((r) => r.data.rel_level === 'below' && ['trickle', 'flowing'].includes(r.data.flow)).length)),
-      kv('Seepage-meter tests', String(by('sm').length))));
+    const ftc = TT.FORMS.feat.fieldMap.ftype.options.map((o) => ({ label: o, n: feat.filter((r) => r.data.ftype === o.v).length })).filter((x) => x.n);
+    wrap.append(h('div', h('h4', { text: `Site features (${feat.length})` }), ftc.length ? bars(ftc) : h('p.muted', { text: 'None yet.' })));
+    const lining = feat.filter((r) => r.data.ftype === 'lining');
+    const seeps = feat.filter((r) => r.data.ftype === 'seep');
+    wrap.append(h('div', h('h4', { text: 'Key indicators' }),
+      kv('Inflows reaching the lake', String(feat.filter((r) => ['inflow', 'drain', 'catch'].includes(r.data.ftype) && r.data.reaches === 'yes').length)),
+      kv('Inflows diverted or blocked', String(feat.filter((r) => r.data.reaches === 'no').length)),
+      kv('Lining: outside ground higher than crest', String(lining.filter((r) => r.data.outside === 'higher').length)),
+      kv('Lining: water ponding outside (H2)', String(lining.filter((r) => r.data.ponding === 'yes').length)),
+      kv('Lining: no weep holes', String(lining.filter((r) => r.data.weep === 'absent').length)),
+      kv('Seeps below lake level and flowing (H3)', String(seeps.filter((r) => r.data.below === 'below' && ['trickle', 'flowing'].includes(r.data.flow)).length))));
     return wrap;
   }
 
   function hypSummary(records) {
-    const hm = records.filter((r) => r.form === 'hyp').sort((a, b) => b.updated.localeCompare(a.updated))[0];
-    if (!hm) return h('p.muted', { text: 'No assessment yet. Fill the Hypothesis–evidence matrix after Day 1, Day 3 and at the end of fieldwork.' });
-    const items = TT.HYP.map((hy) => ({ label: { en: `${hy.id} ${hy.en}`, ne: `${hy.id} ${hy.ne}` }, n: n(hm.data[hy.id + '_score']) ?? 0, color: ['#c9d3d8', '#e9c46a', '#f4a261', '#b5541c'][n(hm.data[hy.id + '_score']) ?? 0] }));
-    return h('div', h('p', h('a', { href: '#/edit/' + hm.id, text: hm.id }), ` · ${TT.optLabel(TT.FORMS.hyp.fieldMap.stage, hm.data.stage || '')} · ${TT.fmt(hm.updated)}`),
-      bars(items, { fmt: (i) => `${i.n} / 3` }),
-      hm.data.mechanism && kv('Dominant problem', TT.optLabel(TT.FORMS.hyp.fieldMap.mechanism, hm.data.mechanism)),
-      hm.data.next_level && kv('Next level', TT.optLabel(TT.FORMS.hyp.fieldMap.next_level, hm.data.next_level)),
-      h('p.muted.sm', { text: 'Scores are a transparent organising device (0 absent … 3 strong), not probabilities.' }));
+    const latest = TT.LAKE_IDS.map((id) => records.filter((r) => r.form === 'hyp' && r.data.lake === id).sort((a, b) => b.updated.localeCompare(a.updated))[0]).filter(Boolean);
+    if (!latest.length) return h('p.muted', { text: 'Not scored yet. Fill the hypothesis matrix at the end of each lake day.' });
+    const colours = ['#c9d3d8', '#e9c46a', '#f4a261', '#b5541c'];
+    return h('div.grid2', ...latest.map((hm) => h('div',
+      h('h4', { text: TT.lakeName(hm.data.lake) }),
+      h('p', h('a', { href: '#/edit/' + hm.id, text: hm.id }), ` · ${TT.fmt(hm.updated)}`),
+      bars(TT.HYP.map((hy) => { const sc = n(hm.data[hy.id + '_score']) ?? 0; return { label: { en: `${hy.id} ${hy.en}` }, n: sc, color: colours[sc] }; }), { fmt: (i) => `${i.n} / 3` }),
+      hm.data.mechanism && kv('Main problem', TT.optLabel(TT.FORMS.hyp.fieldMap.mechanism, hm.data.mechanism)))));
   }
 })();

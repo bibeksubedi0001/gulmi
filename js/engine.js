@@ -1,4 +1,4 @@
-/* Timure Taal field portal: UI primitives + form engine (render, skip logic, compute, validate, print). */
+/* Lakes field portal: UI primitives + form engine (render, skip logic, compute, validate, print). */
 'use strict';
 (function () {
   const TT = window.TT;
@@ -81,7 +81,7 @@
     g.font = `${Math.round(band * 0.5)}px "Times New Roman", Times, serif`;
     g.textBaseline = 'middle';
     const now = new Date().toISOString();
-    const txt = ['Timure Taal', id, rec.id, 'logged ' + TT.fmt(now), fix ? `${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ±${fix.acc} m` : 'no GPS'].join('   ·   ');
+    const txt = [TT.lakeName((rec.data || {}).lake) || 'Gulmi lakes', id, rec.id, 'logged ' + TT.fmt(now), fix ? `${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ±${fix.acc} m` : 'no GPS'].join('   ·   ');
     g.fillText(txt, Math.round(band * 0.4), ih + band / 2, w - band * 0.8);
     if (bmp.close) bmp.close();
     const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.82));
@@ -101,24 +101,18 @@
     if (typeof v === 'object') return f.type === 'gps' ? Number.isFinite(v.lat) : Object.keys(v).length > 0;
     return true;
   };
-  const curLang = () => document.body.dataset.lang || 'both';
-  const optText = (o, type) => {
-    const lang = curLang();
-    if (lang === 'ne') return o.ne || o.en;
-    if (lang === 'both' && o.ne && o.en && type !== 'bsyear') return `${o.ne} / ${o.en}`;
-    return o.en || o.ne;
-  };
-  TT.optLabel = (f, v, lang = 'en') => {
+  const optText = (o) => o.en || o.ne;
+  TT.optLabel = (f, v) => {
     const o = (f.options || []).find((x) => x.v === String(v));
-    return o ? TT.Ls(o, lang) : String(v);
+    return o ? TT.Ls(o) : String(v);
   };
   TT.valueText = function (f, v, vals, lang = 'en') {
     if (v == null || v === '') return '';
     const oth = vals && vals[f.id + '__other'];
     switch (f.type) {
-      case 'radio': case 'select': case 'yn': case 'scale': case 'bsyear':
+      case 'radio': case 'select': case 'yn': case 'scale': case 'bsyear': case 'person':
         return TT.optLabel(f, v, lang) + (v === 'other' && oth ? ': ' + oth : '');
-      case 'checks': case 'months':
+      case 'checks': case 'months': case 'people':
         return (Array.isArray(v) ? v : [v]).map((x) => TT.optLabel(f, x, lang) + (x === 'other' && oth ? ': ' + oth : '')).join('; ');
       case 'rank':
         return (v || []).map((x, i) => (x ? `${i + 1}. ${TT.optLabel(f, x, lang)}` : '')).filter(Boolean).join('; ');
@@ -222,8 +216,8 @@
 
   function buildSelect(f, value, onchange, cls = '.inp') {
     const s = h('select' + cls, { onchange: (e) => onchange(e.target.value) },
-      h('option', { value: '', text: '—' }),
-      ...(f.options || []).map((o) => h('option', { value: o.v, text: optText(o, f.type) })));
+      h('option', { value: '', text: '— Select —' }),
+      ...(f.options || []).map((o) => h('option', { value: o.v, text: optText(o) })));
     s.value = value ?? '';
     return s;
   }
@@ -231,75 +225,59 @@
     const s = buildSelect(io.f, io.get(), (v) => io.set(v));
     return { el: s, update: () => { s.value = io.get() ?? ''; } };
   };
+  R.radio = R.select;
+  R.yn = R.select;
+  R.scale = R.select;
+  R.person = R.select;
   R.bsyear = (io) => {
     const s = buildSelect(io.f, io.get(), (v) => io.set(v));
     return { el: h('div.row-inline', s, h('span.muted.sm', { text: 'BS (AD)' })), update: () => { s.value = io.get() ?? ''; } };
   };
 
-  let optSeq = 0;
-  function options(io, multi) {
+  // Multi-answer questions: checkbox grid; "none"/"don't know" clear the other ticks.
+  R.checks = (io) => {
     const f = io.f;
     const excl = f.exclusive || ['none', 'dk', 'na'];
-    const name = `o${++optSeq}-${f.id}`;
-    const box = h('div.opts' + (f.options.length > 6 ? '.many' : ''), { role: multi ? 'group' : 'radiogroup' });
+    const box = h('div.opts' + (f.options.length > 4 ? '.many' : ''), { role: 'group' });
     const inputs = f.options.map((op) => {
-      const inp = h('input', { type: multi ? 'checkbox' : 'radio', name, value: op.v });
-      // Clicking the selected radio again clears it (native radios cannot be unset otherwise).
-      inp.addEventListener('click', () => {
-        if (multi) {
-          let cur = Array.isArray(io.get()) ? [...io.get()] : [];
-          if (!inp.checked) cur = cur.filter((x) => x !== op.v);
-          else if (excl.includes(op.v)) cur = [op.v];
-          else cur = cur.filter((x) => !excl.includes(x)).concat(op.v);
-          io.set(cur);
-        } else io.set(io.get() === op.v ? '' : op.v);
+      const inp = h('input', { type: 'checkbox', value: op.v });
+      inp.addEventListener('change', () => {
+        let cur = Array.isArray(io.get()) ? [...io.get()] : [];
+        if (!inp.checked) cur = cur.filter((x) => x !== op.v);
+        else if (excl.includes(op.v)) cur = [op.v];
+        else cur = cur.filter((x) => !excl.includes(x)).concat(op.v);
+        io.set(cur);
         paint();
       });
       box.append(h('label.opt', inp, h('span', L(op))));
       return inp;
     });
     function paint() {
-      const v = io.get();
-      inputs.forEach((i) => { i.checked = multi ? Array.isArray(v) && v.includes(i.value) : v === i.value; });
+      const v = Array.isArray(io.get()) ? io.get() : [];
+      inputs.forEach((i) => { i.checked = v.includes(i.value); });
     }
     paint();
     return { el: box, update: paint };
-  }
-  R.radio = (io) => options(io, false);
-  R.yn = R.radio;
-  R.scale = R.radio;
-  R.checks = (io) => options(io, true);
-  R.months = (io) => options(io, true);
+  };
+  R.months = R.checks;
+  R.people = R.checks;
 
-  // Ranks are stored as [rank-1 option, rank-2 option, ...]; a rank given to a second option moves to it.
+  // Ranking as 1st/2nd/3rd dropdowns; picking a cause already ranked elsewhere moves it here.
   R.rank = (io) => {
     const f = io.f;
     const max = f.max || 3;
+    const ORD = ['1st', '2nd', '3rd'];
     const sels = [];
-    const rows = f.options.map((op) => {
-      const sel = h('select.inp.sm.rank-sel', { 'aria-label': 'Rank' }, h('option', { value: '', text: '—' }),
-        ...Array.from({ length: max }, (_, i) => h('option', { value: String(i + 1), text: String(i + 1) })));
-      sel.addEventListener('change', () => {
-        const old = io.get() || [];
-        const cur = Array.from({ length: max }, (_, i) => (old[i] === op.v ? null : old[i] ?? null));
-        if (sel.value) cur[+sel.value - 1] = op.v;
+    for (let i = 0; i < max; i++) {
+      sels.push(buildSelect({ options: f.options }, (io.get() || [])[i] ?? '', () => {
+        const cur = sels.map((s) => s.value || null);
+        cur.forEach((x, k) => { if (k !== i && x && x === cur[i]) { cur[k] = null; sels[k].value = ''; } });
         while (cur.length && cur[cur.length - 1] == null) cur.pop();
         io.set(cur.some(Boolean) ? cur : '');
-        paint();
-      });
-      sels.push([sel, op.v]);
-      return h('label.rank-row', h('span', L(op)), sel);
-    });
-    function paint() {
-      const cur = io.get() || [];
-      sels.forEach(([s, v]) => { const i = cur.indexOf(v); s.value = i >= 0 ? String(i + 1) : ''; s.dataset.val = s.value; });
+      }));
     }
-    paint();
-    return {
-      el: h('div', h('div.q-hint', L({ ne: `सबैभन्दा सम्भावित कारणलाई १ देखि ${TT.neDigits(max)} सम्म क्रम दिनुहोस् (एउटा क्रम एक पटक मात्र)।`, en: `Give ranks 1 to ${max} to the most likely causes (each rank once).` })),
-        h('div.rank-list', ...rows)),
-      update: paint,
-    };
+    const paint = () => { const cur = io.get() || []; sels.forEach((s, i) => { s.value = cur[i] || ''; }); };
+    return { el: h('div.rank-list', ...sels.map((s, i) => h('label.rank-row', h('span.rank-n', { text: ORD[i] || `#${i + 1}` }), s))), update: paint };
   };
 
   R.grid = (io) => {
@@ -372,12 +350,14 @@
         lat.value = v.lat.toFixed(6);
         lon.value = v.lon.toFixed(6);
         const u = TT.utm(v.lat, v.lon);
-        const d = TT.distM(TT.LAKE, v);
+        const ctr = TT.lakeCentre(io.vals.lake);
+        const d = ctr && TT.distM(ctr, v);
         out.replaceChildren(...[
           h('span.b', { text: TT.gpsText(v) }),
           v.alt != null && h('span', { text: `GPS alt ${Math.round(v.alt)} m` }),
           u && h('span', { text: `UTM 44N  E ${u.e.toFixed(1)}  N ${u.n.toFixed(1)}` }),
-          h('span', { text: `${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(2) + ' km'} ${TT.compass8(TT.bearing(TT.LAKE, v))} of lake centre` }),
+          ctr ? h('span', { text: `${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(2) + ' km'} ${TT.compass8(TT.bearing(ctr, v))} of ${TT.lakeName(io.vals.lake)} centre` })
+            : io.vals.lake && h('span', { text: 'lake centre not set yet (Data page)' }),
           v.n > 1 && h('span', { text: `${v.n} fixes${v.averaged ? ' averaged' : ''}` }),
           v.src === 'manual' && h('span', { text: 'entered manually' })].filter(Boolean));
       } else out.replaceChildren(h('span.muted', { text: 'No position yet' }));
@@ -580,20 +560,8 @@
 
     function evidenceRow(f) {
       const key = f.id + '__src';
-      const name = `e${++optSeq}-${f.id}`;
-      const inputs = TT.O.src.map((o) => {
-        const inp = h('input', { type: 'radio', name, value: o.v });
-        inp.addEventListener('click', () => {
-          if (vals[key] === o.v) delete vals[key]; else vals[key] = o.v;
-          paint();
-          changed(key);
-        });
-        return inp;
-      });
-      const paint = () => inputs.forEach((i) => { i.checked = vals[key] === i.value; });
-      paint();
-      return h('div.evi', h('span.evi-l', L({ ne: 'जानकारीको स्रोत:', en: 'How do they know?' })),
-        ...TT.O.src.map((o, i) => h('label.opt.inline', inputs[i], h('span', L(o)))));
+      const s = buildSelect({ options: TT.O.src }, vals[key] ?? '', (v) => { if (v) vals[key] = v; else delete vals[key]; changed(key); }, '.inp.sm');
+      return h('label.evi', h('span.evi-l', { text: 'How do they know?' }), s);
     }
 
     function noteRow(f) {
@@ -622,7 +590,7 @@
       wrap.append(ctl.el);
       let other = null;
       if (f.other) {
-        other = h('input.inp.other', { type: 'text', maxLength: 300, placeholder: 'Specify other / अन्य खुलाउनुहोस्', value: vals[f.id + '__other'] || '',
+        other = h('input.inp.other', { type: 'text', maxLength: 300, placeholder: 'Specify other', value: vals[f.id + '__other'] || '',
           oninput: (e) => { if (e.target.value) vals[f.id + '__other'] = e.target.value; else delete vals[f.id + '__other']; changed(f.id + '__other'); } });
         wrap.append(other);
       }
@@ -673,7 +641,7 @@
         it.wrap.classList.remove('invalid');
         if (!TT.visible(it.f, vals)) continue;
         let msg = '';
-        if (it.f.required && !TT.answered(it.f, vals[it.f.id])) msg = 'Required / आवश्यक';
+        if (it.f.required && !TT.answered(it.f, vals[it.f.id])) msg = 'Required';
         else if (it.f.validate) { try { msg = it.f.validate(vals[it.f.id], vals, ctx) || ''; } catch (e) { msg = ''; } }
         if (msg) { errs.push(it); it.err.textContent = msg; it.wrap.classList.add('invalid'); }
       }
@@ -754,8 +722,8 @@
     q.append(h('div.p-ql', h('b', `${f.num}. `), L(f.q), f.ref && h('span.p-when', ` [R${f.ref}]`), when && h('em.p-when', ` → ${when}`)));
     if (f.hint) q.append(h('div.p-hint', L(f.hint)));
     switch (f.type) {
-      case 'radio': case 'select': case 'yn': case 'scale': case 'checks': case 'months': {
-        const multi = f.type === 'checks' || f.type === 'months';
+      case 'radio': case 'select': case 'yn': case 'scale': case 'checks': case 'months': case 'person': case 'people': {
+        const multi = f.type === 'checks' || f.type === 'months' || f.type === 'people';
         q.append(h('div.p-opts', ...f.options.map((o) => h('span.p-opt', box(multi ? (v || []).includes(o.v) : v === o.v), L(o)))));
         if (f.other) q.append(h('div.p-line', 'Other: ', filled ? vals[f.id + '__other'] || '' : '______________________'));
         break;
@@ -784,7 +752,7 @@
     const filled = !!rec;
     const doc = h('article.print-doc');
     doc.append(h('header.p-head',
-      h('div.p-brand', 'Timure Taal Field Investigation · Chandrakot Rural Municipality-4, Gulmi'),
+      h('div.p-brand', `${filled && TT.LAKES[vals.lake] ? TT.lakeName(vals.lake) : 'Timure Taal / Chhekmi Taal'} field investigation · Gulmi`),
       h('h1', L(form.title)),
       h('div.p-meta', filled
         ? `Record ${rec.id} · ${rec.status} · created ${TT.fmt(rec.created)} · updated ${TT.fmt(rec.updated)}${rec.enumerator ? ' · ' + rec.enumerator : ''}`
