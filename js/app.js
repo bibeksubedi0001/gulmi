@@ -10,7 +10,7 @@
 
   // Fields copied into the next record by "Complete + new" (the lake is always carried).
   const CARRY = {
-    hh: ['enum', 'settlement'], kii: ['enum'], wl: ['gauge', 'observer'], bath: ['surveyor', 'gauge'], soil: ['zone', 'collected_by'],
+    hh: ['enum', 'settlement'], kii: ['enum'], wl: ['gauge', 'observer'], bath: ['surveyor', 'gauge'], soil: ['zone', 'depth', 'collected_by'],
     feat: ['surveyor', 'ftype'], inf: ['surveyor', 'method', 'd_inner'], q: ['surveyor'], bm: [], day: ['team'], hyp: ['assessor'],
   };
   const lakeOf = (r) => r.data.lake || '';
@@ -485,7 +485,13 @@
     }
     if (!Array.isArray(S.settings.team)) S.settings.team = [];
     if (!TT.LAKES[S.settings.activeLake]) S.settings.activeLake = 'timure';
+    if (S.settings.enumerator === 'Amrit') S.settings.enumerator = 'Ankit';
+    S.settings.team = S.settings.team.map((n) => (n === 'Amrit' ? 'Ankit' : n));
     TT.settings = S.settings;
+    try {
+      const renamed = (await TT.db.all('records')).filter(TT.renameTeam);
+      if (renamed.length) await TT.db.putMany('records', renamed);
+    } catch (e) { console.error(e); }
     buildChrome();
     window.addEventListener('hashchange', route);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });

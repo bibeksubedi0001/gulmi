@@ -188,29 +188,47 @@
     ],
   });
 
-  /* ---------- soil sample ---------- */
+  /* ---------- soil sample: hand sampling, feel-and-appearance moisture, water availability ---------- */
   const ZONES = E('A:A — Exposed lake margin / former bed|B:B — Inflow / swale zone|C:C — Next to the lining (not through it)|D:D — Downslope wet spot|E:E — Undisturbed control upslope');
   const soilPrefix = (v) => (v.lake && v.zone ? `${TT.lakeCode(v.lake)}-${v.zone}` : '');
+  const MOIST = E('dry:Very dry (0–25%) — powdery, falls apart, no stain|slight:Slightly moist (25–50%) — weak ball, breaks easily|moist:Moist (50–75%) — ball holds shape, slight stain|wet:Wet (75–100%) — sticky, mouldable, stains fingers|sat:Saturated — water appears when squeezed');
+  const TEXTURE = E('sand:Sand — loose and gritty; weak ball when moist|loam:Loam — crumbly; pliable ball when moist|clay:Clay — hard clods; strong ball, ribbons when moist|other:Other');
+  const AVAIL = { dry: 'Very low — crumbles instantly', slight: 'Moderate — ball forms but cracks', moist: 'High — smooth ball', wet: 'High — smooth ball', sat: 'At or above field capacity — free water' };
+  const head = (opts, v) => { const o = opts.find((x) => x.v === v); return o ? o.en.split(/ \(| —/)[0] : v; };
   reg({
-    id: 'soil', short: 'SS', icon: 'layers', geo: 'loc', target: 6, targetLabel: 'samples',
+    id: 'soil', short: 'SS', icon: 'layers', geo: 'loc', target: 6, targetLabel: 'samples', version: 3,
     title: { en: 'Soil sample' },
-    summary: (v) => [v.sample_id, v.stype === 'core' ? 'core' : v.stype ? 'bag' : '', v.depth].filter(Boolean).join(' · '),
+    summary: (v) => [v.sample_id, v.moisture && head(MOIST, v.moisture), v.texture && head(TEXTURE, v.texture)].filter(Boolean).join(' · '),
     onChange: autoId('sample_id', /^[A-Z]{2}-[A-E]\d+$/, soilPrefix, ['zone', 'lake']),
     onNew: (v, ctx) => { const p = soilPrefix(v); if (p && !v.sample_id) v.sample_id = TT.nextId(ctx, 'soil', 'sample_id', p); },
     sections: [
-      { id: '1', title: { en: 'Sample' }, fields: [
+      { id: 'A', title: { en: 'Sampling location' }, fields: [
         Q('zone', 'select', 'Zone', { required: true, options: ZONES }),
         Q('sample_id', 'text', 'Sample ID (auto)', { required: true, ph: 'TT-A01' }),
-        Q('stype', 'select', 'Type', { required: true, options: E('dist:Bag (disturbed)|core:Core (undisturbed)') }),
         Q('loc', 'gps', 'Position', { required: true }),
         when(),
-        Q('depth', 'text', 'Depth (m, from–to)', { ph: '0.10–0.30' }),
-        Q('moisture', 'select', 'Moisture', { options: E('dry:Dry|moist:Moist|wet:Wet|sat:Saturated') }),
-        Q('texture', 'select', 'Field texture', { options: E('gravel:Gravel|sand:Sand|lsand:Loamy sand|sloam:Sandy loam|loam:Loam|siloam:Silt loam|cl:Clay loam|sic:Silty clay|clay:Clay|organic:Organic') }),
-        Q('tests', 'checks', 'Lab tests', { options: E('wc:Water content|gsd:Grain size|atterberg:Atterberg limits|density:Density|perm:Permeability|om:Organic content') }),
-        Q('photos', 'photos', 'Photos', { required: true }),
+        Q('site', 'checks', 'Present at the spot (avoid if possible)', { options: E('disturbed:Recently disturbed soil|burrow:Animal burrows|channel:Road or water channel close by|none:None of these') }),
         Q('collected_by', 'person', 'Collected by', { default: (ctx) => ctx.settings.enumerator || '' }),
-        Q('notes', 'text', 'Notes'),
+      ] },
+      { id: 'B', title: { en: 'Sample collection' }, fields: [
+        Q('depth', 'select', 'Depth (dug by hand or stick)', { default: '5-15', options: E('5-15:5–15 cm (root zone)|15-30:15–30 cm|30+:Deeper than 30 cm') }),
+        Q('collect', 'checks', 'Collection', { options: E('debris:Surface debris removed (leaves, stones, litter)|bottom:Soil taken from the bottom of the hole|handful:About a handful collected') }),
+        Q('stype', 'select', 'Sample kept', { required: true, options: E('none:Not kept (tested on site)|dist:Bagged for the lab|core:Core (undisturbed)') }),
+        Q('photos', 'photos', 'Photos', { required: true }),
+      ] },
+      { id: 'C', title: { en: 'Moisture (feel and appearance)' }, fields: [
+        Q('moisture', 'select', 'Moisture by feel (% of plant-available water)', { required: true, options: MOIST }),
+      ] },
+      { id: 'D', title: { en: 'Soil texture' }, fields: [
+        Q('texture', 'select', 'Texture by feel', { other: true, options: TEXTURE }),
+      ] },
+      { id: 'E', title: { en: 'Water availability' }, fields: [
+        Q('avail', 'computed', 'From the squeeze test', { empty: 'select the moisture level', compute: (v) => AVAIL[v.moisture] || null }),
+        Q('plants', 'select', 'Plants at the spot', { options: E('am:Wilting in the early morning — critically low|pm:Wilting only in the afternoon — moderate|ok:Dark green, turgid leaves — adequate|none:No plants at the spot') }),
+      ] },
+      { id: 'F', title: { en: 'Field notes' }, fields: [
+        Q('tests', 'checks', 'Lab tests', { show: ['stype', ['dist', 'core']], options: E('wc:Water content|gsd:Grain size|atterberg:Atterberg limits|density:Density|perm:Permeability|om:Organic content') }),
+        Q('notes', 'textarea', 'Notes (colour, roots, smell, anything unusual)'),
       ] },
     ],
   });

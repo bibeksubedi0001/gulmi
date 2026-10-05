@@ -22,8 +22,23 @@
   O.lake = TT.LAKE_IDS.map((id) => o(id, TT.LAKES[id].ne, TT.LAKES[id].en));
   O.lakeBoth = [...O.lake, o('both', 'दुवै ताल', 'Both lakes')];
 
-  TT.TEAM = ['Bibek', 'Mission', 'Amrit'];
+  TT.TEAM = ['Bibek', 'Mission', 'Ankit'];
   O.team = [...TT.TEAM.map((name) => ({ v: name, en: name })), o('other', 'अन्य', 'Other')];
+  // Data entered before v1.3.0 named Ankit as "Amrit"; returns true if the record was changed.
+  TT.renameTeam = (rec) => {
+    const fix = (x) => (x === 'Amrit' ? 'Ankit' : x);
+    const form = TT.FORMS[rec.form];
+    let changed = false;
+    for (const f of form ? form.fields : []) {
+      if (f.type !== 'person' && f.type !== 'people') continue;
+      const v = rec.data[f.id];
+      const nv = Array.isArray(v) ? v.map(fix) : fix(v);
+      if (JSON.stringify(nv) !== JSON.stringify(v)) { rec.data[f.id] = nv; changed = true; }
+    }
+    const en = String(rec.enumerator || '').replace(/\bAmrit\b/g, 'Ankit');
+    if (en !== String(rec.enumerator || '')) { rec.enumerator = en; changed = true; }
+    return changed;
+  };
   TT.defaultTeam = (ctx) => {
     const t = ctx.settings.team;
     if (Array.isArray(t) && t.length) return [...t];

@@ -380,6 +380,7 @@
       const clean = { id: r.id, uuid: r.uuid || TT.uuid(), form: r.form, formVersion: r.formVersion || 1, status: r.status === 'complete' ? 'complete' : 'draft',
         created: String(r.created || new Date().toISOString()), updated: String(r.updated || r.created || new Date().toISOString()),
         device: String(r.device || ''), enumerator: String(r.enumerator || ''), data: r.data };
+      TT.renameTeam(clean);
       const cur = local.get(r.id);
       if (!cur) { put.push(clean); res.added++; }
       else if (Date.parse(clean.updated) > Date.parse(cur.updated)) { put.push(clean); res.updated++; }

@@ -15,7 +15,7 @@
 
   TT.renderGuide = function (root) {
     const toc = [['plan', 'Field week'], ['day', 'Full lake day'], ['people', 'Interviews'], ['measure', 'Measurement notes'],
-      ['hyp', 'Hypotheses'], ['data', 'Data and IDs'], ['facts', 'What is known'], ['refs', 'References']];
+      ['soil', 'Soil sampling'], ['hyp', 'Hypotheses'], ['data', 'Data and IDs'], ['facts', 'What is known'], ['refs', 'References']];
     root.replaceChildren(
       h('div.page-head', h('h1', { text: 'Field guide' })),
       h('nav.toc', ...toc.map(([id, txt]) => h('a', { href: '#/guide', text: txt, onclick: (ev) => { ev.preventDefault(); document.getElementById('g-' + id).scrollIntoView({ behavior: 'smooth' }); } }))),
@@ -41,7 +41,7 @@
         ]),
         table(['Per lake', 'Target'], [
           ['Benchmark + staff gauge', '1 + 1'], ['Water-level readings', 'evening before; morning, midday, evening'], ['Site features', '≈ 15'],
-          ['Depth transects', '≈ 6 + one QA repeat'], ['Soil samples', '≈ 6 bags + 2 cores'], ['Infiltration tests', '2'],
+          ['Depth transects', '≈ 6 + one QA repeat'], ['Soil samples', '≈ 6 across zones A–E'], ['Infiltration tests', '2'],
           ['Flow measurements', 'every visible flow'], ['Household interviews', '8'], ['Key informants', '2'],
         ])),
 
@@ -73,6 +73,31 @@
           'Seeps: note whether they lie below the lake level and compare EC / temperature with the lake water.',
           'Soil zones: A exposed lake margin, B inflow swale, C next to (never through) the lining, D downslope wet spot, E undisturbed control.',
           'Infiltration on dry soil is not lake-bed seepage; treat it as supporting evidence only.',
+        ])),
+
+      sec('soil', 'Soil sampling, moisture and water availability (no tools)',
+        table(['Step', 'How'], [
+          ['Location', 'A representative spot. Avoid recently disturbed soil, animal burrows, roads and water channels; zones B–D are next to channels or the lining by design, so tick what is present.'],
+          ['Depth', '5–15 cm (2–6 in), the root zone; dig with the hands or a stick.'],
+          ['Collection', 'Remove leaves, stones and litter; take soil from the bottom of the hole, not the surface.'],
+          ['Quantity', 'A handful, squeezed in the palm for the tests below.'],
+        ]),
+        table(['Moisture (% of available water)', 'Feel and appearance', 'Meaning'], [
+          ['Very dry (0–25%)', 'Powdery or dusty; no cohesion, falls apart instantly; no stain on fingers', 'Plants likely stressed'],
+          ['Slightly moist (25–50%)', 'Weak ball that breaks easily; finger marks visible', 'May need water soon'],
+          ['Moist (50–75%)', 'Ball holds its shape; slight stain on fingers', 'Ideal for most plants'],
+          ['Wet (75–100%)', 'Sticks strongly to fingers; easily moulded; leaves water stains', 'High water content'],
+          ['Saturated', 'Water appears when squeezed', 'At or above field capacity; do not add water'],
+        ]),
+        table(['Texture', 'Dry', 'Moist', 'Wet'], [
+          ['Sand', 'Loose, flows through fingers', 'Weak ball', 'Slight sticking'],
+          ['Loam', 'Crumbly', 'Forms a pliable ball', 'Slick and sticky'],
+          ['Clay', 'Hard clods', 'Strong ball; ribbons when pressed', 'Very sticky, heavy coating'],
+        ]),
+        table(['Sign', 'Water availability'], [
+          ['Crumbles instantly', 'Very low'], ['Forms a ball but cracks', 'Moderate'], ['Forms a smooth ball', 'High'],
+          ['Water appears when squeezed', 'At or above field capacity'], ['Plants wilting in the early morning', 'Critically low'],
+          ['Plants wilting only in the afternoon', 'Moderate'], ['Dark green, turgid leaves', 'Adequate'],
         ])),
 
       sec('hyp', 'Hypotheses (score 0–3 at the end of each lake day)',
