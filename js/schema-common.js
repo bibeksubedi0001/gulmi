@@ -217,7 +217,7 @@
   TT.prepareForm = function (form) {
     if (form._ready) return form;
     form.sections[0].fields.unshift({
-      id: 'lake', type: 'select', q: { ne: 'ताल', en: 'Lake' }, required: true, note: false,
+      id: 'lake', type: 'select', q: { ne: 'ताल', en: 'Lake' }, note: false,
       options: form.lakeBoth ? O.lakeBoth : O.lake, default: (ctx) => ctx.settings.activeLake || '',
     });
     form.fields = [];

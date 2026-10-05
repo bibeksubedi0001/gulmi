@@ -48,7 +48,7 @@
     api.setValue(key, TT.nextId(ctx, ctx.record.form, key, prefix));
   };
   const surveyors = () => Q('surveyor', 'people', 'Surveyor(s)', { default: TT.defaultTeam });
-  const when = () => Q('dt', 'datetime', 'Date & time', { now: true, required: true });
+  const when = () => Q('dt', 'datetime', 'Date & time', { now: true });
 
   /* ---------- field day checklist ---------- */
   const PREP = E('maps:Printed maps / satellite sheets|records:Old photos and construction records requested|ki:Key informants contacted|phones:Portal opened offline on every phone; enumerator set|calib:EC / temperature meter calibrated|labels:Sample bags and core tubes labelled|permit:Ward / landowner permission|kit:Kit packed: tape, staff and level, sounding line, pegs, gauge, auger, core rings, bucket and stopwatch, life jacket, first aid');
@@ -59,8 +59,8 @@
     summary: (v) => [v.date, Array.isArray(v.tasks) ? `${v.tasks.length}/${TASKS.length} tasks` : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Day' }, fields: [
-        Q('date', 'date', 'Date', { now: true, required: true }),
-        Q('kind', 'select', 'Day type', { required: true, default: 'field', options: E('prep:Preparation (before travel)|field:Field day at this lake|extra:Follow-up visit') }),
+        Q('date', 'date', 'Date', { now: true }),
+        Q('kind', 'select', 'Day type', { default: 'field', options: E('prep:Preparation (before travel)|field:Field day at this lake|extra:Follow-up visit') }),
         Q('team', 'people', 'Team present', { default: TT.defaultTeam }),
         Q('weather', 'select', 'Weather', { options: O.weather }),
         Q('rain_24h', 'select', 'Rain in the last 24 h', { options: O.rainSince }),
@@ -78,10 +78,10 @@
     summary: (v) => [v.mark_id, v.kind === 'gauge' ? 'gauge' : 'benchmark', v.zero_rl != null ? 'zero RL ' + v.zero_rl : v.rl != null ? 'RL ' + v.rl : ''].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Mark' }, fields: [
-        Q('kind', 'select', 'Type', { required: true, options: E('bm:Benchmark|gauge:Staff gauge') }),
-        Q('mark_id', 'text', 'ID', { required: true, ph: 'BM-1 or SG-1' }),
+        Q('kind', 'select', 'Type', { options: E('bm:Benchmark|gauge:Staff gauge') }),
+        Q('mark_id', 'text', 'ID', { ph: 'BM-1 or SG-1' }),
         Q('desc', 'text', 'Set on / how to find it', { ph: 'e.g. steel rod in rock, 4 m east of the steps' }),
-        Q('loc', 'gps', 'Position (averaged)', { average: true, required: true }),
+        Q('loc', 'gps', 'Position (averaged)', { average: true }),
         Q('photos', 'photos', 'Photos', { required: true }),
         Q('rl', 'number', 'Adopted RL (e.g. assumed 100.000)', { unit: 'm', show: ['kind', 'bm'] }),
         Q('bm_ref', 'text', 'Benchmark used', { show: ['kind', 'gauge'], suggest: markIds }),
@@ -103,9 +103,9 @@
     summary: (v) => [v.gauge, n(v.reading) != null ? fx(n(v.reading)) + ' m' : '', TT.fmt(v.dt)].filter(Boolean).join(' · '),
     sections: [
       { id: '1', title: { en: 'Reading' }, fields: [
-        Q('gauge', 'text', 'Gauge ID', { required: true, suggest: gaugeIds, ph: 'SG-1' }),
+        Q('gauge', 'text', 'Gauge ID', { suggest: gaugeIds, ph: 'SG-1' }),
         when(),
-        Q('reading', 'number', 'Staff reading', { unit: 'm', required: true, min: -1, max: 10 }),
+        Q('reading', 'number', 'Staff reading', { unit: 'm', min: -1, max: 10 }),
         Q('wsl', 'computed', 'Water-surface RL', { unit: 'm', empty: 'gauge not levelled yet',
           compute: (v, ctx) => { const z = TT.gaugeZero(ctx, v.gauge, v.lake); return z != null && n(v.reading) != null ? z + n(v.reading) : null; } }),
         Q('rain_since', 'select', 'Rain since the previous reading', { options: O.rainSince }),
@@ -130,9 +130,9 @@
     sections: [
       { id: '1', title: { en: 'Feature' }, fields: [
         surveyors(), when(),
-        Q('ftype', 'select', 'Feature type', { required: true, options: FT }),
-        Q('fid', 'text', 'Feature ID (auto)', { required: true, ph: 'TT-IN-01' }),
-        Q('loc', 'gps', 'Position', { required: true }),
+        Q('ftype', 'select', 'Feature type', { options: FT }),
+        Q('fid', 'text', 'Feature ID (auto)', { ph: 'TT-IN-01' }),
+        Q('loc', 'gps', 'Position'),
         Q('photos', 'photos', 'Photos', { required: true }),
         Q('desc', 'textarea', 'Description'),
         Q('reaches', 'select', 'Does water from here reach the lake?', { show: ['ftype', WATER], options: E('yes:Yes|partly:Partly|no:No — diverted or blocked|unknown:Unknown') }),
@@ -161,7 +161,7 @@
     sections: [
       { id: '1', title: { en: 'Transect' }, fields: [
         surveyors(), when(),
-        Q('tr_id', 'text', 'Transect ID', { required: true, ph: 'T-01' }),
+        Q('tr_id', 'text', 'Transect ID', { ph: 'T-01' }),
         Q('gauge', 'text', 'Gauge ID', { suggest: gaugeIds }),
         Q('g_start', 'number', 'Gauge reading at start', { unit: 'm' }),
         Q('g_end', 'number', 'Gauge reading at end', { unit: 'm' }),
@@ -192,7 +192,7 @@
   const ZONES = E('A:A — Exposed lake margin / former bed|B:B — Inflow / swale zone|C:C — Next to the lining (not through it)|D:D — Downslope wet spot|E:E — Undisturbed control upslope');
   const soilPrefix = (v) => (v.lake && v.zone ? `${TT.lakeCode(v.lake)}-${v.zone}` : '');
   const MOIST = E('dry:Very dry (0–25%) — powdery, falls apart, no stain|slight:Slightly moist (25–50%) — weak ball, breaks easily|moist:Moist (50–75%) — ball holds shape, slight stain|wet:Wet (75–100%) — sticky, mouldable, stains fingers|sat:Saturated — water appears when squeezed');
-  const TEXTURE = E('sand:Sand — loose and gritty; weak ball when moist|loam:Loam — crumbly; pliable ball when moist|clay:Clay — hard clods; strong ball, ribbons when moist|other:Other');
+  const TEXTURE = E('sand:Sand — loose and gritty; weak ball when moist|silt:Silty — smooth and floury; silky ball when moist|loam:Loam — crumbly; pliable ball when moist|clay:Clay — hard clods; strong ball, ribbons when moist|other:Other');
   const AVAIL = { dry: 'Very low — crumbles instantly', slight: 'Moderate — ball forms but cracks', moist: 'High — smooth ball', wet: 'High — smooth ball', sat: 'At or above field capacity — free water' };
   const head = (opts, v) => { const o = opts.find((x) => x.v === v); return o ? o.en.split(/ \(| —/)[0] : v; };
   reg({
@@ -203,9 +203,9 @@
     onNew: (v, ctx) => { const p = soilPrefix(v); if (p && !v.sample_id) v.sample_id = TT.nextId(ctx, 'soil', 'sample_id', p); },
     sections: [
       { id: 'A', title: { en: 'Sampling location' }, fields: [
-        Q('zone', 'select', 'Zone', { required: true, options: ZONES }),
-        Q('sample_id', 'text', 'Sample ID (auto)', { required: true, ph: 'TT-A01' }),
-        Q('loc', 'gps', 'Position', { required: true }),
+        Q('zone', 'select', 'Zone', { options: ZONES }),
+        Q('sample_id', 'text', 'Sample ID (auto)', { ph: 'TT-A01' }),
+        Q('loc', 'gps', 'Position'),
         when(),
         Q('site', 'checks', 'Present at the spot (avoid if possible)', { options: E('disturbed:Recently disturbed soil|burrow:Animal burrows|channel:Road or water channel close by|none:None of these') }),
         Q('collected_by', 'person', 'Collected by', { default: (ctx) => ctx.settings.enumerator || '' }),
@@ -213,11 +213,11 @@
       { id: 'B', title: { en: 'Sample collection' }, fields: [
         Q('depth', 'select', 'Depth (dug by hand or stick)', { default: '5-15', options: E('5-15:5–15 cm (root zone)|15-30:15–30 cm|30+:Deeper than 30 cm') }),
         Q('collect', 'checks', 'Collection', { options: E('debris:Surface debris removed (leaves, stones, litter)|bottom:Soil taken from the bottom of the hole|handful:About a handful collected') }),
-        Q('stype', 'select', 'Sample kept', { required: true, options: E('none:Not kept (tested on site)|dist:Bagged for the lab|core:Core (undisturbed)') }),
+        Q('stype', 'select', 'Sample kept', { options: E('none:Not kept (tested on site)|dist:Bagged for the lab|core:Core (undisturbed)') }),
         Q('photos', 'photos', 'Photos', { required: true }),
       ] },
       { id: 'C', title: { en: 'Moisture (feel and appearance)' }, fields: [
-        Q('moisture', 'select', 'Moisture by feel (% of plant-available water)', { required: true, options: MOIST }),
+        Q('moisture', 'select', 'Moisture by feel (% of plant-available water)', { options: MOIST }),
       ] },
       { id: 'D', title: { en: 'Soil texture' }, fields: [
         Q('texture', 'select', 'Texture by feel', { other: true, options: TEXTURE }),
@@ -259,8 +259,8 @@
     sections: [
       { id: '1', title: { en: 'Test' }, fields: [
         surveyors(), when(),
-        Q('test_id', 'text', 'Test ID', { required: true, ph: 'IF-01' }),
-        Q('loc', 'gps', 'Position', { required: true }),
+        Q('test_id', 'text', 'Test ID', { ph: 'IF-01' }),
+        Q('loc', 'gps', 'Position'),
         Q('zone', 'select', 'Zone', { options: ZONES }),
         Q('method', 'select', 'Method', { options: E('double:Double ring|single:Single ring') }),
         Q('d_inner', 'number', 'Inner ring diameter', { unit: 'cm' }),
@@ -292,7 +292,7 @@
         Q('site_id', 'text', 'Feature ID', { suggest: ids('feat', 'fid') }),
         Q('stype', 'select', 'Flow type', { options: E('inflow:Inflow|outflow:Outflow / overflow|spring:Spring|seep:Seep|drain:Drain / culvert') }),
         Q('loc', 'gps', 'Position'),
-        Q('method', 'select', 'Method', { required: true, options: E('vol:Bucket and stopwatch|est:Visual estimate') }),
+        Q('method', 'select', 'Method', { options: E('vol:Bucket and stopwatch|est:Visual estimate') }),
         Q('container_l', 'number', 'Container volume', { unit: 'L', min: 0.1, max: 200, show: ['method', 'vol'] }),
         Q('trials', 'table', 'Fill times', { minRows: 3, printRows: 5, show: ['method', 'vol'], columns: [
           C('t_s', 'number', 'Time', { unit: 's', min: 0 }), C('vol_l', 'number', 'Volume if not full', { unit: 'L' }), C('q', 'number', 'Q', { computed: true, unit: 'L/s', dp: 4 })],

@@ -91,6 +91,7 @@
         ]),
         table(['Texture', 'Dry', 'Moist', 'Wet'], [
           ['Sand', 'Loose, flows through fingers', 'Weak ball', 'Slight sticking'],
+          ['Silty', 'Smooth and floury, like flour or talc', 'Silky, smooth ball; ribbon flakes and breaks', 'Slippery and soapy; slightly sticky'],
           ['Loam', 'Crumbly', 'Forms a pliable ball', 'Slick and sticky'],
           ['Clay', 'Hard clods', 'Strong ball; ribbons when pressed', 'Very sticky, heavy coating'],
         ]),

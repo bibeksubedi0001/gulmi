@@ -9,7 +9,7 @@
   const C = (id, type, label, x = {}) => ({ id, type, label: { en: label }, ...x });
   const dk = op('dk', "Don't know");
   const other = op('other', 'Other');
-  const enumerator = () => F('enum', 'person', 'Enumerator', { required: true, default: (ctx) => ctx.settings.enumerator || '' });
+  const enumerator = () => F('enum', 'person', 'Enumerator', { default: (ctx) => ctx.settings.enumerator || '' });
   const settlements = (v, ctx) => [...new Set((ctx.records || []).filter((r) => r.form === 'hh' && r.data.lake === v.lake && r.data.settlement).map((r) => r.data.settlement))];
   const LINING = ['concrete', 'wall', 'bed'];
 
@@ -20,10 +20,10 @@
     sections: [
       { id: 'A', title: e('Interview'), fields: [
         enumerator(),
-        F('start', 'datetime', 'Date & time', { required: true, now: true }),
+        F('start', 'datetime', 'Date & time', { now: true }),
         F('loc', 'gps', 'Interview location'),
         F('settlement', 'text', 'Settlement / tole', { suggest: settlements }),
-        F('consent', 'yn', 'Consent given?', { dk: false, required: true }),
+        F('consent', 'yn', 'Consent given?', { dk: false }),
       ] },
       { id: 'B', title: e('Respondent'), show: ['consent', 'yes'], fields: [
         F('gender', 'select', 'Gender', { options: [op('f', 'Female'), op('m', 'Male'), op('o', 'Other')] }),
@@ -102,10 +102,10 @@
     sections: [
       { id: 'A', title: e('Interview'), fields: [
         enumerator(),
-        F('start', 'datetime', 'Date & time', { required: true, now: true }),
+        F('start', 'datetime', 'Date & time', { now: true }),
         F('loc', 'gps', 'Location'),
-        F('consent', 'yn', 'Consent given?', { dk: false, required: true }),
-        F('role', 'select', 'Informant', { required: true, other: true, show: ['consent', 'yes'], options: [
+        F('consent', 'yn', 'Consent given?', { dk: false }),
+        F('role', 'select', 'Informant', { other: true, show: ['consent', 'yes'], options: [
           op('ward', 'Ward chair / member'), op('rm', 'Municipal official / engineer'), op('forest', 'Forest / soil conservation office'),
           op('contractor', 'Contractor / mason'), op('committee', 'Lake / user committee'), op('homestay', 'Homestay / tourism'),
           op('elder', 'Elder / long-term resident'), other] }),
