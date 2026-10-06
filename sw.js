@@ -1,15 +1,15 @@
 /* Lakes field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.4.0';
+const VERSION = 'timure-portal-v1.5.0';
 const TILE_CACHE = 'gulmi-tiles-v1';
 const TILE_MAX = 1500;
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/theme.js',
   'js/util.js', 'js/geo.js', 'js/db.js', 'js/schema-common.js', 'js/engine.js', 'js/forms-community.js',
-  'js/forms-engineering.js', 'js/exporter.js', 'js/dashboard.js', 'js/guide.js', 'js/app.js',
+  'js/forms-engineering.js', 'js/exporter.js', 'js/dashboard.js', 'js/map.js', 'js/guide.js', 'js/app.js',
   'vendor/xlsx.mini.min.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png',
-  'data/reference.geojson', 'data/basemap/index.json', 'data/basemap/timure.jpg', 'data/basemap/timure.json',
-  'data/basemap/chhekmi.jpg', 'data/basemap/chhekmi.json',
+  'data/reference.geojson', 'data/basemap/index.json', 'data/basemap/timure.jpg', 'data/basemap/timure.json', 'data/basemap/timure-dem.bin',
+  'data/basemap/chhekmi.jpg', 'data/basemap/chhekmi.json', 'data/basemap/chhekmi-dem.bin',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
 ];
 

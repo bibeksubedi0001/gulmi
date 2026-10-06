@@ -3,15 +3,15 @@
 (function () {
   const TT = window.TT;
   const { h, L, icon } = TT;
-  const S = { settings: null, device: null, open: null, carry: null, installEvt: null };
+  const S = { settings: null, device: null, open: null, carry: null, installEvt: null, cleanup: null };
 
-  const NAV = [['', 'home', 'Home'], ['community', 'users', 'Community'], ['engineering', 'tool', 'Engineering'], ['records', 'list', 'Records'],
+  const NAV = [['', 'home', 'Home'], ['community', 'users', 'Community'], ['engineering', 'tool', 'Engineering'], ['map', 'map', 'Map'], ['records', 'list', 'Records'],
     ['dashboard', 'chart', 'Dashboard'], ['guide', 'book', 'Guide'], ['data', 'sliders', 'Data']];
 
   // Fields copied into the next record by "Complete + new" (the lake is always carried).
   const CARRY = {
     hh: ['enum', 'settlement'], kii: ['enum'], wl: ['gauge', 'observer'], bath: ['surveyor', 'gauge'], soil: ['zone', 'depth', 'collected_by'],
-    feat: ['surveyor', 'ftype'], inf: ['surveyor', 'method', 'd_inner'], q: ['surveyor'], bm: [], day: ['team'], hyp: ['assessor'],
+    feat: ['surveyor', 'ftype'], inf: ['surveyor', 'method', 'd_inner'], q: ['surveyor'], bm: [], day: ['team'], hyp: ['assessor'], trk: ['surveyor', 'kind'],
   };
   const lakeOf = (r) => r.data.lake || '';
   const forLake = (all, lake) => (lake && lake !== 'all' ? all.filter((r) => lakeOf(r) === lake || lakeOf(r) === 'both') : all);
@@ -94,6 +94,14 @@
     return rec;
   }
 
+  // Used by the Map page: open an unsaved new record with some answers filled in, or create and save one.
+  TT.openNew = (formId, data) => { S.carry = data; location.hash = '#/new/' + formId; };
+  TT.createRecord = async (formId, data) => {
+    const rec = await newRecord(TT.FORMS[formId], await TT.db.all('records'), data);
+    await saveRecord({ rec, saved: false });
+    return rec;
+  };
+
   /* ---------------- router ---------------- */
   async function route() {
     const [path, query] = (location.hash || '#/').slice(1).split('?');
@@ -109,6 +117,8 @@
       if (!prev.saved && !reused && prev.rec._seq) await TT.db.releaseSeq(prev.form.id, prev.rec._seq);
     }
     const root = document.getElementById('view');
+    if (S.cleanup) { try { S.cleanup(); } catch (e) { console.error(e); } S.cleanup = null; }
+    root.classList.toggle('wide', parts[0] === 'map');
     markNav(parts[0] || '');
     window.scrollTo(0, 0);
     try {
@@ -116,6 +126,7 @@
         case '': return await homeView(root);
         case 'community': return await hubView(root, 'community');
         case 'engineering': return await hubView(root, 'engineering');
+        case 'map': S.cleanup = await TT.renderMap(root, { settings: S.settings, records: await TT.db.all('records') }, params); return;
         case 'new': return await formView(root, parts[1], null, prev);
         case 'edit': return await formView(root, null, parts[1], prev);
         case 'records': return await recordsView(root, params);

@@ -15,7 +15,16 @@
     ]
    ],
    "image": "timure.jpg",
-   "vectors": "timure.json"
+   "vectors": "timure.json",
+   "dem": {
+    "west": 83.34986111111111,
+    "north": 28.12708333333333,
+    "dx": 0.0002777777777777778,
+    "dy": -0.0002777777777777778,
+    "cols": 212,
+    "rows": 191,
+    "file": "timure-dem.bin"
+   }
   },
   {
    "id": "chhekmi",
@@ -31,7 +40,16 @@
     ]
    ],
    "image": "chhekmi.jpg",
-   "vectors": "chhekmi.json"
+   "vectors": "chhekmi.json",
+   "dem": {
+    "west": 83.18625,
+    "north": 28.122083333333332,
+    "dx": 0.0002777777777777778,
+    "dy": -0.0002777777777777778,
+    "cols": 243,
+    "rows": 248,
+    "file": "chhekmi-dem.bin"
+   }
   }
  ]
 }

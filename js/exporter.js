@@ -197,6 +197,12 @@
           if (f.id === form.geo) Object.assign(props, TT.flatten(form, rec, { pii, ctx }).row);
           feats.push({ type: 'Feature', properties: props, geometry: pt(g) });
         }
+        if (f.type === 'track' && Array.isArray(v[f.id])) {
+          const c = v[f.id].filter(ok).map((g) => [r6(g.lon), r6(g.lat)]);
+          const closed = TT.TRACK_CLOSED.includes(v.kind) && c.length >= 3;
+          if (c.length >= 2) feats.push({ type: 'Feature', properties: { ...base, kind: 'track', track_kind: v.kind || '', name: v.name || '', points: c.length, length_m: v.length ?? '', area_m2: closed ? v.area ?? '' : '' },
+            geometry: closed ? { type: 'Polygon', coordinates: [[...c, c[0]]] } : { type: 'LineString', coordinates: c } });
+        }
         if (f.type === 'table' && Array.isArray(v[f.id]) && f.columns.some((c) => c.type === 'gps')) {
           const rows = v[f.id];
           const comp = TT.tableComputed(f, rows, v, ctx);
@@ -221,15 +227,18 @@
   TT.toKML = function (feats) {
     const byForm = {};
     feats.forEach((f) => (byForm[f.properties.form] = byForm[f.properties.form] || []).push(f));
-    const style = (id, col, scale) => `<Style id="${id}"><IconStyle><color>${col}</color><scale>${scale}</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LineStyle><color>${col}</color><width>3</width></LineStyle></Style>`;
+    const style = (id, col, scale) => `<Style id="${id}"><IconStyle><color>${col}</color><scale>${scale}</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LineStyle><color>${col}</color><width>3</width></LineStyle><PolyStyle><color>40${col.slice(2)}</color></PolyStyle></Style>`;
     const desc = (p) => Object.entries(p).filter(([k, x]) => x !== '' && x != null && !/_utm44N_|_alt_m$/.test(k)).slice(0, 80).map(([k, x]) => `${xml(k)}: ${xml(x)}`).join('<br/>');
     const pm = (f) => {
       const p = f.properties;
       const name = p.kind === 'table_point' ? `${p.record_id} #${p.row}${p.depth_m != null ? ' ' + p.depth_m + ' m' : ''}` : p.kind === 'point' ? `${p.record_id} ${p.field}` : `${p.record_id} ${p.summary || ''}`;
-      const sid = p.kind === 'table_point' ? 'table_point' : f.geometry.type === 'LineString' ? 'line' : p.group;
+      const sid = p.kind === 'table_point' ? 'table_point' : f.geometry.type === 'Point' ? p.group : 'line';
+      const ring = (cs) => cs.map((c) => c.join(',')).join(' ');
       const geom = f.geometry.type === 'Point'
         ? `<Point><coordinates>${f.geometry.coordinates.slice(0, 2).join(',')}</coordinates></Point>`
-        : `<LineString><tessellate>1</tessellate><coordinates>${f.geometry.coordinates.map((c) => c.join(',')).join(' ')}</coordinates></LineString>`;
+        : f.geometry.type === 'Polygon'
+          ? `<Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>${ring(f.geometry.coordinates[0])}</coordinates></LinearRing></outerBoundaryIs></Polygon>`
+          : `<LineString><tessellate>1</tessellate><coordinates>${ring(f.geometry.coordinates)}</coordinates></LineString>`;
       return `<Placemark><name>${xml(name.trim())}</name><styleUrl>#${sid}</styleUrl><description><![CDATA[${desc(p)}]]></description>${geom}</Placemark>`;
     };
     const body = Object.entries(byForm).map(([form, fs]) => `<Folder><name>${xml(form)} — ${xml(fs[0].properties.form_title)}</name>${fs.map(pm).join('')}</Folder>`).join('');

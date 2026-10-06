@@ -41,6 +41,26 @@
   };
   TT.compass8 = (deg) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
 
+  const okPt = (g) => g && Number.isFinite(g.lat) && Number.isFinite(g.lon);
+  TT.trackLength = (pts) => {
+    const p = (pts || []).filter(okPt);
+    if (p.length < 2) return null;
+    let s = 0;
+    for (let i = 1; i < p.length; i++) s += TT.distM(p[i - 1], p[i]);
+    return s;
+  };
+  // Enclosed area (m²) of the closed shape, shoelace formula on UTM 44N coordinates.
+  TT.trackArea = (pts) => {
+    const u = (pts || []).filter(okPt).map((g) => TT.utm(g.lat, g.lon));
+    if (u.length < 3) return null;
+    let a = 0;
+    for (let i = 0; i < u.length; i++) {
+      const j = (i + 1) % u.length;
+      a += u[i].e * u[j].n - u[j].e * u[i].n;
+    }
+    return Math.abs(a) / 2;
+  };
+
   TT.gpsText = function (g) {
     if (!g || !Number.isFinite(g.lat)) return '';
     const acc = Number.isFinite(g.acc) ? ` ±${Math.round(g.acc)} m` : '';

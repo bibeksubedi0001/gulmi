@@ -129,6 +129,7 @@
           return `${row ? TT.Ls(row, lang) : r}: ${parts.join(', ')}`;
         }).join('; ');
       case 'table': return `${v.length} row(s)`;
+      case 'track': return `${v.length} points`;
       default: return String(v);
     }
   };
@@ -359,7 +360,8 @@
           ctr ? h('span', { text: `${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(2) + ' km'} ${TT.compass8(TT.bearing(ctr, v))} of ${TT.lakeName(io.vals.lake)} centre` })
             : io.vals.lake && h('span', { text: 'lake centre not set' }),
           v.n > 1 && h('span', { text: `${v.n} fixes${v.averaged ? ' averaged' : ''}` }),
-          v.src === 'manual' && h('span', { text: 'entered manually' })].filter(Boolean));
+          v.src === 'manual' && h('span', { text: 'entered manually' }),
+          v.src === 'map' && h('span', { text: 'picked on map' })].filter(Boolean));
       } else out.replaceChildren(h('span.muted', { text: 'No position yet' }));
     }
     paint();
@@ -424,6 +426,23 @@
         cam, gal, grid),
       update: paint, destroy: () => { const old = urls.splice(0); setTimeout(() => old.forEach((u) => URL.revokeObjectURL(u)), 3000); },
     };
+  };
+
+  // Track points come from the Map page (Track tool, or Measure then "Save as track").
+  R.track = (io) => {
+    const info = h('div.cmp-val');
+    const paint = () => {
+      const pts = Array.isArray(io.get()) ? io.get() : [];
+      info.textContent = pts.length ? `${pts.length} points · ${Math.round(TT.trackLength(pts) || 0)} m` : 'No track yet: record one with the Track tool on the Map page';
+      info.classList.toggle('muted', !pts.length);
+    };
+    paint();
+    const el = h('div', info, h('div.btn-row',
+      h('a.btn.ghost.sm', { href: '#/map?rec=' + encodeURIComponent(io.rec.id) }, icon('map'), 'Show on map'),
+      h('button.btn.ghost.sm', { type: 'button', onclick: async () => {
+        if (await TT.confirm('Clear the track points?', { ok: 'Clear', danger: true })) { io.set(''); paint(); }
+      } }, icon('trash'), 'Clear')));
+    return { el, update: paint };
   };
 
   R.computed = (io) => {
@@ -738,6 +757,7 @@
         break;
       }
       case 'photos': q.append(h('div.p-line', filled ? (v || []).join(', ') || '—' : 'Photo IDs: __________________________________')); break;
+      case 'track': q.append(h('div.p-line', filled && Array.isArray(v) && v.length ? `${v.length} points, ${Math.round(TT.trackLength(v) || 0)} m` : 'GPS track file / waypoints: ______________________')); break;
       case 'textarea': q.append(filled ? h('div.p-ans', v || '—') : h('div.p-box')); break;
       case 'computed': q.append(h('div.p-line', filled ? `${v ?? '—'} ${f.unit || ''}` : '(calculated in the portal)')); break;
       default: q.append(h('div.p-line', filled ? `${v ?? '—'} ${v != null && f.unit ? f.unit : ''}` : `__________________ ${f.unit || ''}`));

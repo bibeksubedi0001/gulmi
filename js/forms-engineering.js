@@ -153,6 +153,27 @@
     ],
   });
 
+  /* ---------- GPS track (recorded or drawn on the Map page) ---------- */
+  const TRK = E('edge:Water edge now|hwm:Old high-water line|inflow:Inflow / runoff path|walk:Perimeter walk|other:Other');
+  TT.TRACK_CLOSED = ['edge', 'hwm', 'walk'];
+  reg({
+    id: 'trk', short: 'TRK', icon: 'route', target: 2, targetLabel: 'tracks',
+    title: { en: 'GPS track' },
+    summary: (v) => [v.kind && head(TRK, v.kind), v.name, n(v.length) != null ? Math.round(n(v.length)) + ' m' : '',
+      n(v.area) != null ? Math.round(n(v.area)).toLocaleString('en') + ' m²' : ''].filter(Boolean).join(' · '),
+    sections: [
+      { id: '1', title: { en: 'Track' }, fields: [
+        surveyors(), when(),
+        Q('kind', 'select', 'What was traced', { options: TRK }),
+        Q('name', 'text', 'Name', { ph: 'e.g. east shore' }),
+        Q('points', 'track', 'Track'),
+        Q('length', 'computed', 'Length', { unit: 'm', dp: 0, compute: (v) => TT.trackLength(v.points) }),
+        Q('area', 'computed', 'Enclosed area', { unit: 'm²', dp: 0, show: ['kind', TT.TRACK_CLOSED], compute: (v) => TT.trackArea(v.points) }),
+        Q('notes', 'textarea', 'Notes'),
+      ] },
+    ],
+  });
+
   /* ---------- depth transect ---------- */
   reg({
     id: 'bath', short: 'BT', icon: 'anchor', geo: 'start_pt', target: 6, targetLabel: 'transects',

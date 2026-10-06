@@ -14,7 +14,7 @@
   const ext = (href, text) => h('a', { href, text, target: '_blank', rel: 'noopener noreferrer' });
 
   TT.renderGuide = function (root) {
-    const toc = [['plan', 'Field week'], ['day', 'Full lake day'], ['people', 'Interviews'], ['measure', 'Measurement notes'],
+    const toc = [['plan', 'Field week'], ['day', 'Full lake day'], ['map', 'Map'], ['people', 'Interviews'], ['measure', 'Measurement notes'],
       ['soil', 'Soil sampling'], ['hyp', 'Hypotheses'], ['data', 'Data and IDs'], ['facts', 'What is known'], ['refs', 'References']];
     root.replaceChildren(
       h('div.page-head', h('h1', { text: 'Field guide' })),
@@ -47,14 +47,23 @@
 
       sec('day', 'Full lake day (Tue Timure, Thu Chhekmi)',
         table(['Time', 'Level and depth', 'Site, soils and flows', 'Interviews'], [
-          ['07:00', h('span', 'Morning reading (install benchmark and gauge first if not done) ', links('bm', 'wl')), h('span', 'Perimeter walk ', links('feat')), h('span', 'Courtesy call; plan the households ', links('day'))],
+          ['07:00', h('span', 'Morning reading (install benchmark and gauge first if not done) ', links('bm', 'wl')), h('span', 'Perimeter walk: record the water-edge track ', links('trk', 'feat')), h('span', 'Courtesy call; plan the households ', links('day'))],
           ['08:30', h('span', 'Depth transects ', links('bath')), h('span', 'Inflows, outlet, lining, cracks, seeps ', links('feat')), h('span', 'Household interviews ', links('hh'))],
           ['11:30', h('span', 'Midday reading; QA transect ', links('wl', 'bath')), h('span', 'Soil samples, infiltration ', links('soil', 'inf')), h('span', 'Key informants ', links('kii'))],
-          ['14:00', h('span', 'Remaining transects; high-water marks ', links('feat')), h('span', 'Downslope seeps, flows, catchment divides ', links('feat', 'q')), h('span', 'Household interviews ', links('hh'))],
+          ['14:00', h('span', 'Remaining transects; walk the old high-water line as a track ', links('trk')), h('span', 'Downslope seeps, flows, catchment divides ', links('feat', 'q')), h('span', 'Household interviews ', links('hh'))],
           ['16:30', h('span', 'Evening reading ', links('wl')), h('span', 'Photo points ', links('feat')), h('span', 'Gauge reader appointed ', links('hh'))],
           ['17:30', 'All together', 'Score the cause ranking', h('span', 'Export every phone ', links('hyp'))],
         ]),
         h('p.muted', { text: 'If time runs short, keep the gauge readings, the inflow/outlet/lining mapping and 5–6 interviews; drop extra transects and the second infiltration test.' })),
+
+      sec('map', 'Map',
+        table(['Tool', 'Use'], [
+          ['My position', 'Live GPS position with its accuracy circle; works offline.'],
+          ['Point info', 'Coordinates (lat/lon, UTM 44N), ground elevation and distance from the lake centre at the crosshair; start a site feature or soil sample there, or set the lake centre.'],
+          ['Measure', 'Tap points for distance, area and an elevation profile; save the line as a GPS track (e.g. an inflow path traced on the satellite view).'],
+          ['Track', 'Walk the water edge or the old high-water line with the map open and the screen on; Stop and save gives the length and enclosed area.'],
+          ['Survey layers', 'Show or hide each record type; feature types and track kinds are colour-coded; IDs appear when zoomed in.'],
+        ])),
 
       sec('people', 'Interviews',
         ul([
