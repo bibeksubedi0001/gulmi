@@ -190,6 +190,15 @@ pre.err { white-space: pre-wrap; font-size: .8rem; background: var(--bad-l); col
 .evi { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; margin-top: 8px; padding: 5px 10px; background: var(--violet-l); border: 1px dashed var(--violet-line); }
 .evi-l { font-size: .88rem; color: var(--violet); font-weight: 700; }
 details.note { margin-top: 6px; }
+/* voice typing */
+.dict { position: relative; }
+.dict > .inp { padding-right: 88px; }
+.dict-ctl { position: absolute; right: 5px; top: 5px; display: flex; gap: 3px; }
+.dict-ctl button { height: 34px; min-width: 36px; padding: 0 6px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 2px; background: var(--card-alt); color: var(--ink); font: 700 .8rem var(--font); cursor: pointer; }
+.dict-ctl .ic { width: 18px; height: 18px; }
+.dict-mic.on { background: var(--bad-fill); border-color: var(--bad-fill); color: #fff; animation: pulse 1.1s infinite; }
+.dict-other { margin-top: 8px; }
+.dict-other > .inp.other { margin-top: 0; }
 details.note summary { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .84rem; cursor: pointer; list-style: none; padding: 4px 0; }
 details.note summary::-webkit-details-marker { display: none; }
 details.note summary .ic { width: 16px; height: 16px; }

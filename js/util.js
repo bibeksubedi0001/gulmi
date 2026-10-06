@@ -3,7 +3,7 @@
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.5.2';
+  TT.VERSION = '1.6.0';
   // Versioned URL for lazily loaded files, so a CDN copy from an older release is never used.
   TT.asset = (p) => `${p}${p.includes('?') ? '&' : '?'}v=${TT.VERSION}`;
   TT.APP = 'timure-taal-portal';
@@ -104,6 +104,7 @@
     route: C(6, 19, 3) + 'M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15' + C(18, 5, 3),
     maximize: 'M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M16 21h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3',
     undo: 'M3 7v6h6M21 17a9 9 0 0 0-15-6.7L3 13',
+    mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8',
     refresh: 'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15',
     note: 'M4 4h16v12H8l-4 4zM8 8h8M8 12h5',
     crosshair: C(12, 12, 10) + 'M22 12h-4M6 12H2M12 6V2M12 22v-4',

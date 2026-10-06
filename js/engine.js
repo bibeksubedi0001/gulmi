@@ -150,12 +150,60 @@
   /* ---------------- field renderers ---------------- */
   const R = {};
 
+  /* voice typing: Web Speech API (Chrome, Edge, Safari); most phones need internet for it */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const VOICE = { 'en-IN': ['EN', 'English'], 'ne-NP': ['NE', 'Nepali'] };
+  const voiceLang = () => { try { return localStorage.getItem('tt-voice-lang') === 'ne-NP' ? 'ne-NP' : 'en-IN'; } catch (e) { return 'en-IN'; } };
+  const paintLang = (b, l) => { b.textContent = VOICE[l][0]; b.title = `Voice typing in ${VOICE[l][1]} (tap to switch)`; };
+  const voiceOk = (f) => !f.suggest && !/(^|_)(id|fid|phone)$/.test(f.id);
+  let speaking = null;
+  const stopVoice = () => { if (speaking) { try { speaking.rec.stop(); } catch (e) { /* already stopped */ } } };
+  window.addEventListener('hashchange', stopVoice);
+  function dictate(el, cls = '') {
+    if (!SR) return el;
+    const mic = h('button.dict-mic', { type: 'button', title: 'Voice typing', 'aria-label': 'Voice typing' }, icon('mic'));
+    const lang = h('button.dict-lang', { type: 'button' });
+    paintLang(lang, voiceLang());
+    lang.addEventListener('click', () => {
+      const l = voiceLang() === 'ne-NP' ? 'en-IN' : 'ne-NP';
+      try { localStorage.setItem('tt-voice-lang', l); } catch (e) { /* private mode: this page only */ }
+      document.querySelectorAll('.dict-lang').forEach((b) => paintLang(b, l));
+      if (speaking) stopVoice();
+    });
+    mic.addEventListener('click', () => {
+      if (speaking && speaking.mic === mic) return stopVoice();
+      stopVoice();
+      const rec = new SR();
+      rec.lang = voiceLang();
+      rec.interimResults = true;
+      rec.continuous = !/Android/i.test(navigator.userAgent); // Android repeats results in continuous mode
+      const base = el.value;
+      rec.onresult = (e) => {
+        let t = '';
+        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+        t = t.trim();
+        el.value = !t ? base : !base ? t : base + (/\s$/.test(base) ? '' : ' ') + t;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      rec.onerror = (e) => {
+        const msg = { 'not-allowed': 'Allow the microphone for this site to use voice typing.', 'service-not-allowed': 'Voice typing is blocked in this browser.',
+          network: 'Voice typing needs internet here. Use the keyboard microphone instead.', 'language-not-supported': `${VOICE[rec.lang][1]} voice typing is not available on this device.` }[e.error];
+        if (msg) TT.toast(msg, 'bad', 7000);
+      };
+      rec.onend = () => { mic.classList.remove('on'); if (speaking && speaking.rec === rec) speaking = null; };
+      try { rec.start(); } catch (err) { TT.toast('Voice typing could not start.', 'bad'); return; }
+      speaking = { rec, mic };
+      mic.classList.add('on');
+    });
+    return h('div.dict' + cls, el, h('div.dict-ctl', mic, lang));
+  }
+
   R.info = (io) => ({ el: h('div.info-box', h('div', L(io.f.text)), io.f.items && h('ul', ...io.f.items.map((i) => h('li', L(i))))) });
 
   R.text = (io) => {
     const f = io.f;
     const inp = h('input.inp', { type: 'text', value: io.get() ?? '', placeholder: f.ph || '', maxLength: f.max || 400, autocomplete: 'off', oninput: (e) => io.set(e.target.value) });
-    if (!f.suggest) return { el: inp, update: () => { inp.value = io.get() ?? ''; } };
+    if (!f.suggest) return { el: voiceOk(f) ? dictate(inp) : inp, update: () => { inp.value = io.get() ?? ''; } };
     const id = 'dl-' + f.id + '-' + Math.random().toString(36).slice(2, 7);
     const dl = h('datalist', { id });
     inp.setAttribute('list', id);
@@ -173,7 +221,7 @@
     const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, 520) + 'px'; };
     ta.addEventListener('input', (e) => { io.set(e.target.value); grow(); });
     requestAnimationFrame(grow);
-    return { el: ta, update: () => { ta.value = io.get() ?? ''; grow(); } };
+    return { el: dictate(ta), update: () => { ta.value = io.get() ?? ''; grow(); } };
   };
 
   function numberInput(f, value, onval) {
@@ -587,7 +635,7 @@
       const key = f.id + '__note';
       const ta = h('textarea.inp.note-ta', { rows: 2, placeholder: 'Verbatim answer, landmark, who can verify…', value: vals[key] || '', maxLength: 2000,
         oninput: (e) => { if (e.target.value) vals[key] = e.target.value; else delete vals[key]; changed(key); } });
-      return h('details.note', { open: !!vals[key] }, h('summary', icon('note'), h('span', { text: 'Note' })), ta);
+      return h('details.note', { open: !!vals[key] }, h('summary', icon('note'), h('span', { text: 'Note' })), dictate(ta));
     }
 
     function renderItem(f) {
@@ -608,8 +656,8 @@
       wrap.append(ctl.el);
       let other = null;
       if (f.other) {
-        other = h('input.inp.other', { type: 'text', maxLength: 300, placeholder: 'Specify other', value: vals[f.id + '__other'] || '',
-          oninput: (e) => { if (e.target.value) vals[f.id + '__other'] = e.target.value; else delete vals[f.id + '__other']; changed(f.id + '__other'); } });
+        other = dictate(h('input.inp.other', { type: 'text', maxLength: 300, placeholder: 'Specify other', value: vals[f.id + '__other'] || '',
+          oninput: (e) => { if (e.target.value) vals[f.id + '__other'] = e.target.value; else delete vals[f.id + '__other']; changed(f.id + '__other'); } }), '.dict-other');
         wrap.append(other);
       }
       if (f.evidence) wrap.append(evidenceRow(f));

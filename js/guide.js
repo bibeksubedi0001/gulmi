@@ -71,6 +71,7 @@
           'Prefer people who have lived near the lake for 15+ years; include women, herders and homestay households, and houses above and below the lake.',
           'Ask neutrally: do not mention the earthquake or the lining before the respondent has described what changed in their own words.',
           'Record years in BS. For any old water level ask for a landmark, and whether they saw it themselves or heard it.',
+          'Voice typing: tap the microphone in any text box or note; EN / NE switches between English and Nepali. It usually needs internet; offline, use the keyboard microphone.',
           'Key informants: ward representative, the contractor or masons who built the lining, the lake committee and the oldest residents.',
         ])),
 
