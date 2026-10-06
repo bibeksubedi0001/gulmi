@@ -1,0 +1,37 @@
+{
+ "attribution": "Terrain: Copernicus DEM GLO-30 (ESA); map data © OpenStreetMap contributors (ODbL)",
+ "areas": [
+  {
+   "id": "timure",
+   "name": "Timure Taal",
+   "bounds": [
+    [
+     28.078,
+     83.3539
+    ],
+    [
+     28.123,
+     83.4048
+    ]
+   ],
+   "image": "timure.jpg",
+   "vectors": "timure.json"
+  },
+  {
+   "id": "chhekmi",
+   "name": "Chekmi (Resunga-6) and Tamghas",
+   "bounds": [
+    [
+     28.057,
+     83.1905
+    ],
+    [
+     28.118,
+     83.25
+    ]
+   ],
+   "image": "chhekmi.jpg",
+   "vectors": "chhekmi.json"
+  }
+ ]
+}

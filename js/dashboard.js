@@ -150,6 +150,35 @@
     return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(',')})`;
   };
 
+  // Offline basemap for both lake areas (DEM hillshade, OSM features, contours); precached by the service worker.
+  const OFF_STYLE = {
+    r1: { color: '#b03a2e', weight: 2.6 }, r2: { color: '#6b5b4b', weight: 1.8 }, tr: { color: '#8a6d3b', weight: 1.5, dashArray: '6 3' },
+    pa: { color: '#6f6f6f', weight: 1.2, dashArray: '2 3' }, st: { color: '#2a7fbf', weight: 1.2 }, ri: { color: '#2a7fbf', weight: 2.2 },
+    wa: { color: '#2a7fbf', weight: 1, fillColor: '#8ec5ea', fillOpacity: 0.7 }, bu: { color: '#4b4b4b', weight: 0.6, fillColor: '#8b8b8b', fillOpacity: 0.8 },
+  };
+  async function offlineLayers(L_) {
+    const idx = await (await fetch('data/basemap/index.json')).json();
+    const renderer = L_.canvas({ padding: 0.3 });
+    const base = L_.layerGroup(), contours = L_.layerGroup();
+    for (const a of idx.areas) {
+      L_.imageOverlay('data/basemap/' + a.image, a.bounds, { pane: 'tilePane', attribution: idx.attribution }).addTo(base);
+      const fc = await (await fetch('data/basemap/' + a.vectors)).json();
+      const pick = (test) => ({ type: 'FeatureCollection', features: fc.features.filter(test) });
+      L_.geoJSON(pick((f) => f.properties.k === 'c'), { renderer, interactive: false,
+        style: (f) => ({ color: '#9c7a4a', weight: f.properties.i ? 1.1 : 0.5, opacity: f.properties.i ? 0.9 : 0.6 }) }).addTo(contours);
+      L_.geoJSON(pick((f) => f.properties.k !== 'c' && f.geometry.type !== 'Point'), { renderer, interactive: false,
+        style: (f) => OFF_STYLE[f.properties.k] || { color: '#666', weight: 1 } }).addTo(base);
+      for (const f of fc.features) {
+        const p = f.properties;
+        if (f.geometry.type !== 'Point' || !(p.n || p.e)) continue;
+        const [lon, lat] = f.geometry.coordinates;
+        const text = [p.n, p.k === 'pk' && p.e ? `${p.e} m` : ''].filter(Boolean).join(' ');
+        L_.marker([lat, lon], { icon: L_.divIcon({ className: 'map-lbl map-lbl-' + p.k, html: h('span', { text }), iconSize: null }), interactive: false, keyboard: false }).addTo(base);
+      }
+    }
+    return { base, contours };
+  }
+
   async function buildMap(el, records, lake) {
     await TT.loadCss('vendor/leaflet/leaflet.css');
     await TT.loadScript('vendor/leaflet/leaflet.js');
@@ -159,9 +188,16 @@
     const start = TT.lakeCentre(lake) || TT.lakeCentre('timure');
     const map = L_.map(el, { scrollWheelZoom: false }).setView([start.lat, start.lon], lake === 'all' ? 12 : 17);
     const imagery = L_.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 20, maxNativeZoom: 18, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }).addTo(map);
+      maxZoom: 20, maxNativeZoom: 18, crossOrigin: true, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
     const osm = L_.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, maxNativeZoom: 19, attribution: '© OpenStreetMap contributors' });
+    const off = await offlineLayers(L_).catch(() => null);
+    const bases = { 'Satellite imagery': imagery, OpenStreetMap: osm };
     const overlays = {};
+    if (off) {
+      bases['Offline map (terrain, roads, buildings)'] = off.base;
+      overlays['Contours (20 m)'] = off.contours;
+    }
+    if (off && !navigator.onLine) { off.base.addTo(map); off.contours.addTo(map); } else imagery.addTo(map);
     try {
       const ref = await (await fetch('data/reference.geojson')).json();
       overlays['Timure reference (OSM lake outline, road, path)'] = L_.geoJSON(ref, {
@@ -192,7 +228,7 @@
       else L_.marker([lat, lon], { icon: square(p.group === 'community' ? '#f2b56b' : '#5fc59b', 9) }).bindPopup(pop).addTo(groups.point);
     }
     Object.values(groups).forEach((g) => g.addTo(map));
-    L_.control.layers({ 'Satellite imagery': imagery, OpenStreetMap: osm }, {
+    L_.control.layers(bases, {
       ...overlays, 'Lake centres': lakes, 'Records (orange = community, green = engineering)': groups.record, 'Other GPS points': groups.point,
       'Soundings (darker = deeper)': groups.bath, 'Transects and runoff paths': groups.line }, { collapsed: true }).addTo(map);
     L_.control.scale({ imperial: false }).addTo(map);

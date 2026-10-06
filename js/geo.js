@@ -88,6 +88,7 @@
           t: new Date(pos.timestamp || Date.now()).toISOString(),
         };
         fixes.push(fx);
+        TT.lastFix = { ...fx, at: Date.now() };
         if (!best || fx.acc < best.acc) best = fx;
         onUpdate && onUpdate(fx, best, fixes.length);
         if (!average && fx.acc <= target) finish();
@@ -102,12 +103,20 @@
     return { stop: () => finish() };
   };
 
-  // Quick, non-blocking position for photo stamps.
+  // Quick, non-blocking position for photo stamps; offline cold starts can be slow, so fall back to a fix from the last 15 min.
   TT.quickFix = () => new Promise((res) => {
-    if (!('geolocation' in navigator)) return res(null);
+    const last = () => {
+      const f = TT.lastFix;
+      return f && Date.now() - f.at < 15 * 60000 ? { lat: f.lat, lon: f.lon, acc: Math.round(f.acc), alt: f.alt, last: true } : null;
+    };
+    if (!('geolocation' in navigator)) return res(last());
     navigator.geolocation.getCurrentPosition(
-      (p) => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), alt: p.coords.altitude }),
-      () => res(null),
+      (p) => {
+        const fx = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), alt: p.coords.altitude };
+        TT.lastFix = { ...fx, at: Date.now() };
+        res(fx);
+      },
+      () => res(last()),
       { enableHighAccuracy: true, maximumAge: 120000, timeout: 6000 }
     );
   });

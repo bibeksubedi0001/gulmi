@@ -297,6 +297,9 @@ details.note[open] summary { color: var(--brand-text); }
 .mk i { display: block; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55); }
 .map.leaflet-container { font-family: var(--font); }
 .pop { display: flex; flex-direction: column; gap: 2px; font: .92rem var(--font); }
+.map-lbl { background: none; border: 0; }
+.map-lbl span { display: inline-block; transform: translate(-50%, -50%); font: 700 12px/1.1 var(--font); color: #1f2a2e; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+.map-lbl-po span, .map-lbl-pk span { font-weight: 400; font-style: italic; font-size: 11px; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 24px; }
 .bars { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; }
 .bar-row { display: grid; grid-template-columns: minmax(110px, 40%) 1fr auto; gap: 8px; align-items: center; font-size: .92rem; }

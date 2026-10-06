@@ -81,7 +81,7 @@
     g.font = `${Math.round(band * 0.5)}px "Times New Roman", Times, serif`;
     g.textBaseline = 'middle';
     const now = new Date().toISOString();
-    const txt = [TT.lakeName((rec.data || {}).lake) || 'Gulmi lakes', id, rec.id, 'logged ' + TT.fmt(now), fix ? `${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ±${fix.acc} m` : 'no GPS'].join('   ·   ');
+    const txt = [TT.lakeName((rec.data || {}).lake) || 'Gulmi lakes', id, rec.id, 'logged ' + TT.fmt(now), fix ? `${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ±${fix.acc} m${fix.last ? ' (last fix)' : ''}` : 'no GPS'].join('   ·   ');
     g.fillText(txt, Math.round(band * 0.4), ih + band / 2, w - band * 0.8);
     if (bmp.close) bmp.close();
     const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.82));
