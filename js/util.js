@@ -3,7 +3,9 @@
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.5.0';
+  TT.VERSION = '1.5.1';
+  // Versioned URL for lazily loaded files, so a CDN copy from an older release is never used.
+  TT.asset = (p) => `${p}${p.includes('?') ? '&' : '?'}v=${TT.VERSION}`;
   TT.APP = 'timure-taal-portal';
 
   TT.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

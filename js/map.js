@@ -22,10 +22,10 @@
   const dems = [];
   async function loadBasemap() {
     if (basemap) return basemap;
-    const idx = await (await fetch('data/basemap/index.json')).json();
+    const idx = await (await fetch(TT.asset('data/basemap/index.json'))).json();
     for (const a of idx.areas) {
       if (!a.dem) continue;
-      const buf = await (await fetch('data/basemap/' + a.dem.file)).arrayBuffer();
+      const buf = await (await fetch(TT.asset('data/basemap/' + a.dem.file))).arrayBuffer();
       dems.push({ ...a.dem, z: new Int16Array(buf) });
     }
     basemap = idx;
@@ -52,8 +52,8 @@
     const renderer = L_.canvas({ padding: 0.3 });
     const base = L_.layerGroup(), contours = L_.layerGroup();
     for (const a of idx.areas) {
-      L_.imageOverlay('data/basemap/' + a.image, a.bounds, { pane: 'tilePane', attribution: idx.attribution }).addTo(base);
-      const fc = await (await fetch('data/basemap/' + a.vectors)).json();
+      L_.imageOverlay(TT.asset('data/basemap/' + a.image), a.bounds, { pane: 'tilePane', attribution: idx.attribution }).addTo(base);
+      const fc = await (await fetch(TT.asset('data/basemap/' + a.vectors))).json();
       const pick = (test) => ({ type: 'FeatureCollection', features: fc.features.filter(test) });
       L_.geoJSON(pick((f) => f.properties.k === 'c'), { renderer, interactive: false,
         style: (f) => ({ color: '#9c7a4a', weight: f.properties.i ? 1.1 : 0.5, opacity: f.properties.i ? 0.9 : 0.6 }) }).addTo(contours);
@@ -198,8 +198,8 @@
     const size = () => { wrap.style.height = Math.max(320, window.innerHeight - wrap.getBoundingClientRect().top) + 'px'; if (map) map.invalidateSize(); };
     size();
 
-    await TT.loadCss('vendor/leaflet/leaflet.css');
-    await TT.loadScript('vendor/leaflet/leaflet.js');
+    await TT.loadCss(TT.asset('vendor/leaflet/leaflet.css'));
+    await TT.loadScript(TT.asset('vendor/leaflet/leaflet.js'));
     const L_ = window.L;
     map = L_.map(mapEl, { zoomControl: true });
     const imagery = L_.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -215,7 +215,7 @@
     }
     if (off && !navigator.onLine) { off.base.addTo(map); off.contours.addTo(map); } else imagery.addTo(map);
     try {
-      const ref = await (await fetch('data/reference.geojson')).json();
+      const ref = await (await fetch(TT.asset('data/reference.geojson'))).json();
       overlays['Timure outline (OSM)'] = L_.geoJSON(ref, {
         style: (f) => (f.properties.kind === 'lake_outline' ? { color: '#4fd1ff', weight: 2, fillOpacity: 0.08 } : f.properties.kind === 'road' ? { color: '#ffd166', weight: 3 } : { color: '#ffffff', weight: 2, dashArray: '4 4' }),
         filter: (f) => f.properties.kind !== 'lake_point',

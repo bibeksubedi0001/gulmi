@@ -1,5 +1,5 @@
 /* Lakes field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.5.0';
+const VERSION = 'timure-portal-v1.5.1';
 const TILE_CACHE = 'gulmi-tiles-v1';
 const TILE_MAX = 1500;
 const ASSETS = [
@@ -13,8 +13,13 @@ const ASSETS = [
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
 ];
 
+// Fetch each file with a version query so Cloudflare's edge cache (up to ~10 min stale after a deploy) is bypassed.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.all(ASSETS.map(async (u) => {
+    const res = await fetch(new Request(`${u}?v=${VERSION}`, { cache: 'reload' }));
+    if (!res.ok) throw new Error(`${u}: HTTP ${res.status}`);
+    await c.put(u, res);
+  }))));
 });
 
 self.addEventListener('activate', (e) => {

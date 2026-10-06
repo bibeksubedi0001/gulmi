@@ -138,7 +138,7 @@
   }
 
   TT.buildWorkbook = async function ({ records, photos, pii = false, ctx }) {
-    await TT.loadScript(XLSX_SRC);
+    await TT.loadScript(TT.asset(XLSX_SRC));
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     const used = new Set();
