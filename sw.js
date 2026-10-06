@@ -1,5 +1,5 @@
 /* Lakes field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.6.1';
+const VERSION = 'timure-portal-v1.6.2';
 const TILE_CACHE = 'gulmi-tiles-v1';
 const TILE_MAX = 1500;
 // File -> SHA-256, written by _scratch/stamp_sw.py before each deploy. HTML is not hashed: Cloudflare injects a script into it.
@@ -9,17 +9,17 @@ const ASSETS = {
   'manifest.webmanifest': '861bf12031c55f391bf6ce31b2e55c1016b9aecf5a26bf40b6bd323ca6b40a46',
   'css/app.css': '0b52f2c080569f59e516d6f0f5c9f47e1e75b71385520cd6e615bc2d717d8504',
   'js/theme.js': '43ab2842d5469528e4d2ad9f70ae7f3bbcbf9efcb08b320dc2c4e024c29b8467',
-  'js/util.js': '0abd1bb2dd8281f38839b3220d64e54a748c5aaf7b42788fc46266475ac76adb',
+  'js/util.js': 'd8f06d6bd317dd202e5bfd5a36a34f9a8f5ab0a90c5981ff8770a0ab3695c088',
   'js/geo.js': 'f90c6ead8598e3d8733c0d446250bf1b3138a27ba44f3ae262a3b357d194507f',
   'js/db.js': '71d9cb9b6f0704457a559ef5c990aecd53efe04d6491603cd7667ea0708caf6f',
   'js/schema-common.js': 'b77a9c9df5703b59ef070ccdfeaae47d76f6a3597726fe17686ce4a761e03a80',
-  'js/engine.js': '1d0c75d33c2d955b1dad211b8e370c9505b17319c61fe313ffb1e3a90f62b235',
+  'js/engine.js': '27f33bc109374780818cb15caa6c6c23091bd078629787f17b56dabad3a2f9c1',
   'js/forms-community.js': '14b838b619220f3e2cc4744d1afef5d3dbdc862eb779668018989d09e752e6fd',
   'js/forms-engineering.js': '8708b1ce0e58db61085c0abafafc1d59e29466d49b50c40d20039646c3e38651',
   'js/exporter.js': '4f6e640974f0f3ed77e1db24fb40107a1baba4b03fdb56a109adb972f2c74b6f',
   'js/dashboard.js': '46fd9c5b79038c3d8d2415fdb3966ddc5dcd930245eceb5cf44efe775480eee6',
   'js/map.js': '64c840075476e4101222e3b735e3d7ca5b6b1d62087b9cfba1cd90d3d4adbf83',
-  'js/guide.js': '9d6125ed07a822233181df60fa75168cb03da106b7fcc0a552e8759d6bb3a874',
+  'js/guide.js': '64fa05cc048b956ff06a5733b8ba819877302b41f5dfd40edfdff2826aa066c9',
   'js/app.js': '60fd2a374cd044f3169d1d4bc864398ffd01f7626bd9dbbc765fec4ee2e7db1a',
   'vendor/xlsx.mini.min.js': '0cb353f830d7288385492c83d277b058ddeac664ca51cf1393aa1fd3e2b70939',
   'vendor/leaflet/leaflet.js': 'db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a',

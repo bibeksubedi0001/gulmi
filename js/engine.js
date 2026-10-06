@@ -158,15 +158,14 @@
   const voiceOk = (f) => !f.suggest && !/(^|_)(id|fid|phone)$/.test(f.id);
   // every iPhone/iPad browser uses Apple's recogniser, which has no Nepali (it reports service-not-allowed)
   const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  const CHROME = (navigator.userAgentData?.brands || []).some((b) => b.brand === 'Google Chrome');
-  const voiceError = (code, lang) => {
-    if (code === 'service-not-allowed' || code === 'language-not-supported') {
-      if (lang === 'ne-NP' && IOS) return 'iPhone and iPad cannot do Nepali voice typing (Apple has no Nepali speech recognition). Use EN here, or Chrome on an Android phone for Nepali.';
-      if (lang === 'ne-NP' && !CHROME) return 'This browser has no Nepali voice typing. Open the site in Google Chrome' + (/Android/i.test(navigator.userAgent) ? ', or use the Gboard keyboard microphone set to Nepali.' : '.');
-      return IOS ? 'Voice typing is switched off. Turn on Dictation in Settings › General › Keyboard.' : `${VOICE[lang][1]} voice typing is not available in this browser.`;
-    }
-    return { 'not-allowed': 'Allow the microphone for this site to use voice typing.', network: 'Voice typing needs internet here. Use the keyboard microphone instead.' }[code];
-  };
+  const NE_FALLBACK = 'hi-IN'; // closest language Apple offers; writes Devanagari
+  let neRefused = false;
+  const voiceError = (code) => ({
+    'not-allowed': 'Allow the microphone for this site to use voice typing.',
+    'service-not-allowed': IOS ? 'Voice typing is not available right now. Turn on Dictation (Settings › General › Keyboard) and check the internet.' : 'Voice typing is not available in this browser. Try Google Chrome.',
+    'language-not-supported': 'This language is not available for voice typing in this browser. Try Google Chrome.',
+    network: 'Voice typing needs internet here. Use the keyboard microphone instead.',
+  }[code]);
   let speaking = null;
   const stopVoice = () => { if (speaking) { try { speaking.rec.stop(); } catch (e) { /* already stopped */ } } };
   window.addEventListener('hashchange', stopVoice);
@@ -184,30 +183,46 @@
     mic.addEventListener('click', () => {
       if (speaking && speaking.mic === mic) return stopVoice();
       stopVoice();
+      const l = voiceLang();
+      listen(l === 'ne-NP' && neRefused ? NE_FALLBACK : l);
+    });
+    function listen(language) {
       const rec = new SR();
-      const language = voiceLang();
       rec.lang = language;
       rec.interimResults = true;
       rec.continuous = !/Android/i.test(navigator.userAgent); // Android repeats results in continuous mode
       const base = el.value;
+      let heard = false;
       rec.onresult = (e) => {
+        heard = true;
         let t = '';
         for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
         t = t.trim();
         el.value = !t ? base : !base ? t : base + (/\s$/.test(base) ? '' : ' ') + t;
         el.dispatchEvent(new Event('input', { bubbles: true }));
       };
-      const done = () => { mic.classList.remove('on'); if (speaking && speaking.rec === rec) speaking = null; };
+      const done = () => {
+        if (speaking && speaking.rec === rec) speaking = null;
+        if (!speaking || speaking.mic !== mic) mic.classList.remove('on');
+      };
       rec.onerror = (e) => {
-        const msg = voiceError(e.error, language);
+        const refused = !heard && (e.error === 'service-not-allowed' || e.error === 'language-not-supported');
+        if (language === 'ne-NP' && refused) {
+          neRefused = true;
+          TT.toast((IOS ? 'iPhone has no Nepali speech recognition' : 'This browser has no Nepali speech recognition (Google Chrome has)')
+            + ', so NE now uses the Hindi one: it writes Devanagari, but check the words.', 'warn', 9000);
+          if (speaking && speaking.rec === rec) speaking = null;
+          return listen(NE_FALLBACK);
+        }
+        const msg = language === NE_FALLBACK && refused ? 'Nepali and Hindi voice typing are both unavailable here. Use EN, or type in Nepali.' : voiceError(e.error);
         if (msg) TT.toast(msg, 'bad', 10000);
         done();
       };
       rec.onend = done;
-      try { rec.start(); } catch (err) { TT.toast('Voice typing could not start.', 'bad'); return; }
+      try { rec.start(); } catch (err) { TT.toast('Voice typing could not start.', 'bad'); done(); return; }
       speaking = { rec, mic };
       mic.classList.add('on');
-    });
+    }
     return h('div.dict' + cls, el, h('div.dict-ctl', mic, lang));
   }
 
