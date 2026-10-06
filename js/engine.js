@@ -156,6 +156,17 @@
   const voiceLang = () => { try { return localStorage.getItem('tt-voice-lang') === 'ne-NP' ? 'ne-NP' : 'en-IN'; } catch (e) { return 'en-IN'; } };
   const paintLang = (b, l) => { b.textContent = VOICE[l][0]; b.title = `Voice typing in ${VOICE[l][1]} (tap to switch)`; };
   const voiceOk = (f) => !f.suggest && !/(^|_)(id|fid|phone)$/.test(f.id);
+  // every iPhone/iPad browser uses Apple's recogniser, which has no Nepali (it reports service-not-allowed)
+  const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const CHROME = (navigator.userAgentData?.brands || []).some((b) => b.brand === 'Google Chrome');
+  const voiceError = (code, lang) => {
+    if (code === 'service-not-allowed' || code === 'language-not-supported') {
+      if (lang === 'ne-NP' && IOS) return 'iPhone and iPad cannot do Nepali voice typing (Apple has no Nepali speech recognition). Use EN here, or Chrome on an Android phone for Nepali.';
+      if (lang === 'ne-NP' && !CHROME) return 'This browser has no Nepali voice typing. Open the site in Google Chrome' + (/Android/i.test(navigator.userAgent) ? ', or use the Gboard keyboard microphone set to Nepali.' : '.');
+      return IOS ? 'Voice typing is switched off. Turn on Dictation in Settings › General › Keyboard.' : `${VOICE[lang][1]} voice typing is not available in this browser.`;
+    }
+    return { 'not-allowed': 'Allow the microphone for this site to use voice typing.', network: 'Voice typing needs internet here. Use the keyboard microphone instead.' }[code];
+  };
   let speaking = null;
   const stopVoice = () => { if (speaking) { try { speaking.rec.stop(); } catch (e) { /* already stopped */ } } };
   window.addEventListener('hashchange', stopVoice);
@@ -174,7 +185,8 @@
       if (speaking && speaking.mic === mic) return stopVoice();
       stopVoice();
       const rec = new SR();
-      rec.lang = voiceLang();
+      const language = voiceLang();
+      rec.lang = language;
       rec.interimResults = true;
       rec.continuous = !/Android/i.test(navigator.userAgent); // Android repeats results in continuous mode
       const base = el.value;
@@ -185,12 +197,13 @@
         el.value = !t ? base : !base ? t : base + (/\s$/.test(base) ? '' : ' ') + t;
         el.dispatchEvent(new Event('input', { bubbles: true }));
       };
+      const done = () => { mic.classList.remove('on'); if (speaking && speaking.rec === rec) speaking = null; };
       rec.onerror = (e) => {
-        const msg = { 'not-allowed': 'Allow the microphone for this site to use voice typing.', 'service-not-allowed': 'Voice typing is blocked in this browser.',
-          network: 'Voice typing needs internet here. Use the keyboard microphone instead.', 'language-not-supported': `${VOICE[rec.lang][1]} voice typing is not available on this device.` }[e.error];
-        if (msg) TT.toast(msg, 'bad', 7000);
+        const msg = voiceError(e.error, language);
+        if (msg) TT.toast(msg, 'bad', 10000);
+        done();
       };
-      rec.onend = () => { mic.classList.remove('on'); if (speaking && speaking.rec === rec) speaking = null; };
+      rec.onend = done;
       try { rec.start(); } catch (err) { TT.toast('Voice typing could not start.', 'bad'); return; }
       speaking = { rec, mic };
       mic.classList.add('on');
