@@ -5,10 +5,10 @@
   const o = (v, ne, en) => ({ v, ne, en });
   const O = (TT.O = {});
 
-  // Chhekmi's centre is not in any inventory or map; the team sets it by GPS on its field day (Data page).
+  // Chhekmi centre = centre of the Chekmi_Taal layer extent in the team's QGIS project (Chekmitaal.qgs, UTM 44N E716146.9 N3107992.8).
   TT.LAKES = {
     timure: { id: 'timure', code: 'TT', ne: 'टिमुरे ताल', en: 'Timure Taal', lat: 28.10051389, lon: 83.37936389, place: 'Chandrakot RM-4, Remi, Gulmi' },
-    chhekmi: { id: 'chhekmi', code: 'CK', ne: 'छेक्मी ताल', en: 'Chhekmi Taal', lat: null, lon: null, place: 'Chekmi, Resunga-6, Gulmi' },
+    chhekmi: { id: 'chhekmi', code: 'CK', ne: 'छेक्मी ताल', en: 'Chhekmi Taal', lat: 28.079772, lon: 83.199665, place: 'Dhurkot RM-1, Gulmi' },
   };
   TT.LAKE_IDS = Object.keys(TT.LAKES);
   TT.lakeName = (id, lang = 'en') => (TT.LAKES[id] ? TT.Ls(TT.LAKES[id], lang) : id === 'both' ? 'Both lakes' : '');

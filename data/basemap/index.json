@@ -28,11 +28,11 @@
   },
   {
    "id": "chhekmi",
-   "name": "Chekmi (Resunga-6) and Tamghas",
+   "name": "Chhekmi Taal (Dhurkot-1) and Tamghas",
    "bounds": [
     [
      28.057,
-     83.1905
+     83.173
     ],
     [
      28.118,
@@ -42,11 +42,11 @@
    "image": "chhekmi.jpg",
    "vectors": "chhekmi.json",
    "dem": {
-    "west": 83.18625,
+    "west": 83.16875,
     "north": 28.122083333333332,
     "dx": 0.0002777777777777778,
     "dy": -0.0002777777777777778,
-    "cols": 243,
+    "cols": 306,
     "rows": 248,
     "file": "chhekmi-dem.bin"
    }

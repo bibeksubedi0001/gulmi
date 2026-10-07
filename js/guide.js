@@ -26,12 +26,12 @@
             ' Afternoon at Timure: benchmark, staff gauge, first reading ', links('bm', 'wl'))],
           ['Tue 6', 'Timure', 'Full lake day (timetable below)'],
           ['Wed 7', 'Timure → Tamghas → Chekmi', h('span', '07:00 reading, QA transect, last interviews, gauge reader, cause ranking ', links('wl', 'bath', 'hyp'),
-            ' Leave by 13:00. At Chekmi before dark: set the lake centre (Data page), benchmark, gauge, first reading ', links('bm', 'wl'))],
+            ' Leave by 13:00. At Chhekmi before dark: benchmark, gauge, first reading ', links('bm', 'wl'))],
           ['Thu 8', 'Chhekmi', h('span', 'Full lake day, gauge reader, cause ranking; export every phone ', links('hyp'))],
           ['Fri 9', 'Tamghas → Burtibang → Dhorpatan', 'Reserved 4WD jeep, leave 06:00–07:00'],
         ]),
         table(['Travel', 'Road', 'Time'], [
-          ['Chandrakot → Timure', '≈ 12 km', '30–45 min'], ['Timure → Tamghas', '≈ 40 km', '2–2.5 h'], ['Tamghas → Chekmi (Resunga-6)', '≈ 6 km', '20–30 min'],
+          ['Chandrakot → Timure', '≈ 12 km', '30–45 min'], ['Timure → Tamghas', '≈ 40 km', '2–2.5 h'], ['Tamghas → Chhekmi Taal (Dhurkot-1)', '≈ 13 km by road (5 km straight)', '40–60 min'],
           ['Tamghas → Burtibang', '≈ 55 km', '2.5–3.5 h'], ['Burtibang → Dhorpatan (≈ 2,900 m)', '≈ 30 km, +1,600 m', '2–3 h'],
         ]),
         ul([
@@ -63,6 +63,7 @@
           ['Measure', 'Tap points for distance, area and an elevation profile; save the line as a GPS track (e.g. an inflow path traced on the satellite view).'],
           ['Track', 'Walk the water edge or the old high-water line with the map open and the screen on; Stop and save gives the length and enclosed area.'],
           ['Survey layers', 'Show or hide each record type; feature types and track kinds are colour-coded; IDs appear when zoomed in.'],
+          ['Chhekmi GIS', 'Lake (approximate outline), total contributing catchment and DEM flow paths, rebuilt on the grid of the team\u2019s QGIS project. Check the divides and flow paths on the ground, and walk the real water edge as a track.'],
         ])),
 
       sec('people', 'Interviews',
@@ -126,9 +127,9 @@
 
       sec('facts', 'What is known',
         table(['', 'Timure Taal', 'Chhekmi Taal'], [
-          ['Location', 'Chandrakot RM-4, Remi; 28.100514 N, 83.379364 E', 'Chekmi, Resunga-6 (≈ 4 km west of Tamghas); centre set by GPS on site'],
-          ['Water area', '≈ 3,638 m² (2026 imagery); 0.5 ha core area in the 2017 inventory', 'To be mapped'],
-          ['Catchment', '13.87 ha (DEM); 16.6 ha in the 2017 inventory', 'Not yet delineated'],
+          ['Location', 'Chandrakot RM-4, Remi; 28.100514 N, 83.379364 E', 'Dhurkot RM-1; 28.079772 N, 83.199665 E (QGIS project); nearest road ≈ 110 m north-west'],
+          ['Water area', '≈ 3,638 m² (2026 imagery); 0.5 ha core area in the 2017 inventory', 'Lake extent in the GIS ≈ 86 × 116 m; map the water edge'],
+          ['Catchment', '13.87 ha (DEM); 16.6 ha in the 2017 inventory', '≈ 29.5 ha (DEM, on the grid of the team\u2019s QGIS analysis); check the divides'],
           ['Reported change', 'Decline locally linked to the period after 2072 (2015)', 'To be established in interviews'],
         ])),
 

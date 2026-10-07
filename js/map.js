@@ -70,6 +70,20 @@
     return { base, contours };
   }
 
+  /* ---------- Chhekmi lake, catchment and flow paths from the team's QGIS project (precached) ---------- */
+  const GIS_COL = { lake: '#8ec5ea', catchment: '#c43c39', drain: '#2196f3' };
+  async function gisLayers(L_) {
+    const fc = await (await fetch(TT.asset('data/chhekmi_gis.geojson'))).json();
+    const pick = (k) => ({ type: 'FeatureCollection', features: fc.features.filter((f) => f.properties.kind === k) });
+    const catchment = L_.geoJSON(pick('catchment'), { style: { color: GIS_COL.catchment, weight: 2.5, fillColor: GIS_COL.catchment, fillOpacity: 0.06 },
+      onEachFeature: (f, l) => l.bindTooltip(`Contributing catchment (DEM) · ${fmtArea(f.properties.area_m2)}`) });
+    const lake = L_.geoJSON(pick('lake'), { style: { color: '#0b3a8c', weight: 1.5, dashArray: '4 3', fillColor: GIS_COL.lake, fillOpacity: 0.55 },
+      onEachFeature: (f, l) => l.bindTooltip(`Chhekmi Taal · approximate outline (GIS extent ${f.properties.extent_m.join(' × ')} m)`) });
+    const flow = L_.geoJSON(pick('drain'), { interactive: false, style: (f) => ({ color: GIS_COL.drain, weight: [0, 1.6, 2.3, 3.2][f.properties.w], opacity: 0.95 }) });
+    const area = pick('catchment').features.reduce((s, f) => s + f.properties.area_m2, 0);
+    return { lakeCatchment: L_.layerGroup([catchment, lake]), flow, bounds: catchment.getBounds(), area };
+  }
+
   /* ---------- survey layers ---------- */
   const CATS = [
     { id: 'hh', label: 'Household interviews', color: '#d9822b' }, { id: 'kii', label: 'Key informants', color: '#b5651d' },
@@ -225,6 +239,12 @@
         },
       }).addTo(map);
     } catch (e) { /* not cached yet */ }
+    let gis = null;
+    try {
+      gis = await gisLayers(L_);
+      overlays['Chhekmi lake and catchment (GIS)'] = gis.lakeCatchment.addTo(map);
+      overlays['Flow paths (DEM)'] = gis.flow.addTo(map);
+    } catch (e) { console.error(e); }
     const centres = L_.layerGroup().addTo(map);
     const drawCentres = () => {
       centres.clearLayers();
@@ -254,10 +274,14 @@
         return Object.entries(cols).filter(([k]) => used.has(k)).map(([k, col]) => h('span.leg-key', h('i.sw', { style: { background: col } }), TT.optLabel(TT.FORMS[form].fieldMap[field], k).split(' / ')[0]));
       };
       const ft = keys('feat', 'ftype', FT_COL), tk = keys('trk', 'kind', TRK_COL);
+      const gisKey = gis && lake !== 'timure' ? h('div.leg-sub', h('small', { text: 'Chhekmi GIS' }),
+        h('span.leg-key', h('i.sw', { style: { background: GIS_COL.lake } }), 'Lake (approximate)'),
+        h('span.leg-key', h('i.sw', { style: { background: GIS_COL.catchment } }), `Catchment ${(gis.area / 1e4).toFixed(1)} ha`),
+        h('span.leg-key', h('i.sw', { style: { background: GIS_COL.drain } }), 'Flow paths')) : '';
       legend.replaceChildren(h('b', { text: 'Survey layers' }), ...(rows.length ? rows : [h('p.muted', { text: 'Nothing mapped yet.' })]),
         ft.length ? h('div.leg-sub', h('small', { text: 'Feature types' }), ...ft) : '',
         tk.length ? h('div.leg-sub', h('small', { text: 'Track kinds' }), ...tk) : '',
-        data.counts.bath ? h('div.leg-sub', h('small', { text: 'Soundings: light = shallow, dark = deep' })) : '');
+        data.counts.bath ? h('div.leg-sub', h('small', { text: 'Soundings: light = shallow, dark = deep' })) : '', gisKey);
     };
     const areaCentre = (id) => {
       const a = basemap && basemap.areas.find((x) => x.id === id);
@@ -266,6 +290,7 @@
     const fit = () => {
       const ids = lake === 'all' ? TT.LAKE_IDS : [lake];
       const pts = [...data.pts, ...ids.map((id) => TT.lakeCentre(id)).filter(Boolean).map((c) => [c.lat, c.lon])];
+      if (gis && ids.includes('chhekmi')) pts.push(gis.bounds.getSouthWest(), gis.bounds.getNorthEast());
       if (pts.length > 1) map.fitBounds(L_.latLngBounds(pts).pad(0.15), { maxZoom: 18 });
       else if (pts.length === 1) map.setView(pts[0], 17);
       else map.setView(areaCentre(lakeId()) || [28.10051, 83.37936], 15);
