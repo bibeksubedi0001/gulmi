@@ -183,7 +183,7 @@
   TT.renderMap = async function (root, ctx, params) {
     const settings = ctx.settings;
     let lake = params.get('lake') || settings.activeLake || 'all';
-    const lakeId = () => (TT.LAKES[lake] ? lake : TT.LAKES[settings.activeLake] ? settings.activeLake : 'timure');
+    const lakeId = () => (TT.LAKES[lake] ? lake : TT.LAKES[settings.activeLake] ? settings.activeLake : 'chhekmi');
     const lakeSel = h('select.inp.sm', { 'aria-label': 'Lake' }, h('option', { value: 'all', text: 'Both lakes' }), ...TT.O.lake.map((o) => h('option', { value: o.v, text: o.en })));
     lakeSel.value = lake;
     const legendBtn = h('button.btn.ghost.sm', { type: 'button', 'aria-expanded': 'false' }, icon('layers'), 'Survey layers');

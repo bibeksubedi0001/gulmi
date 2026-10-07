@@ -105,7 +105,7 @@
     return code;
   };
 
-  TT.DEFAULT_SETTINGS = { enumerator: '', team: [], activeLake: 'timure', lakeCentres: {}, evap: 4, evapTol: 2, lastExport: null };
+  TT.DEFAULT_SETTINGS = { enumerator: '', team: [], activeLake: 'chhekmi', lakeCentres: {}, evap: 4, evapTol: 2, lastExport: null };
   TT.loadSettings = async () => ({ ...TT.DEFAULT_SETTINGS, ...(await TT.db.getMeta('settings', {})) });
   TT.saveSettings = (s) => TT.db.setMeta('settings', s);
 })();

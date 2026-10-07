@@ -22,7 +22,7 @@
     document.getElementById('nav').replaceChildren(...NAV.map(([p, ic, label]) => h('a.nav-a', { href: '#/' + p, dataset: { p } }, icon(ic), h('span', { text: label }))));
     const sel = h('select.lake-sel', { 'aria-label': 'Active lake', title: 'New records are tagged with this lake' },
       ...TT.O.lake.map((o) => h('option', { value: o.v, text: o.en })));
-    sel.value = S.settings.activeLake || 'timure';
+    sel.value = S.settings.activeLake || 'chhekmi';
     sel.addEventListener('change', async () => {
       S.settings.activeLake = sel.value;
       await TT.saveSettings(S.settings);
@@ -495,7 +495,12 @@
       return;
     }
     if (!Array.isArray(S.settings.team)) S.settings.team = [];
-    if (!TT.LAKES[S.settings.activeLake]) S.settings.activeLake = 'timure';
+    if (!TT.LAKES[S.settings.activeLake]) S.settings.activeLake = 'chhekmi';
+    // Devices set up on Timure move to Chhekmi once; choosing a lake in the header afterwards sticks.
+    if (S.settings.defaultLake !== 'chhekmi') {
+      S.settings.activeLake = S.settings.defaultLake = 'chhekmi';
+      TT.saveSettings(S.settings).catch((e) => console.error(e));
+    }
     if (S.settings.enumerator === 'Amrit') S.settings.enumerator = 'Ankit';
     S.settings.team = S.settings.team.map((n) => (n === 'Amrit' ? 'Ankit' : n));
     TT.settings = S.settings;
