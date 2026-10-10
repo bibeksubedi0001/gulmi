@@ -14,8 +14,8 @@
     setTimeout(() => t.remove(), ms + 400);
   };
 
-  TT.dialog = function (build, onCancel) {
-    const dlg = h('dialog.dlg');
+  TT.dialog = function (build, onCancel, cls = '') {
+    const dlg = h('dialog.dlg' + cls);
     const close = () => { if (dlg.open) dlg.close(); dlg.remove(); };
     dlg.addEventListener('cancel', (e) => { e.preventDefault(); close(); if (onCancel) onCancel(); });
     dlg.append(build(close));
@@ -33,19 +33,51 @@
         h('button.btn' + (danger ? '.danger' : ''), { type: 'button', onclick: () => { close(); res(true); } }, ok))), () => res(false));
   });
 
-  TT.viewPhoto = function (p) {
-    const url = URL.createObjectURL(p.blob);
-    const done = () => URL.revokeObjectURL(url);
-    TT.dialog((close) => h('div.dlg-body.photo-view',
-      h('img', { src: url, alt: p.id }),
-      h('div.photo-meta',
-        h('b', { text: p.id }),
-        h('span', { text: `${p.record} · ${TT.fmt(p.t)}` }),
-        p.gps && h('span', { text: TT.gpsText(p.gps) }),
-        p.caption && h('span', { text: p.caption })),
-      h('div.btn-row.end',
-        h('button.btn.ghost', { type: 'button', onclick: () => TT.download(p.blob, p.id + '.jpg') }, icon('download'), 'Save copy'),
-        h('button.btn', { type: 'button', onclick: () => { done(); close(); } }, 'Close'))), done);
+  // Photo viewer; given a list it steps through it (arrows, arrow keys, swipe). opts.records: Map id -> record; opts.open: "Open record" button.
+  TT.viewPhoto = function (p, list = [p], opts = {}) {
+    let i = Math.max(0, list.indexOf(p)), url = null, x0 = null, y0 = 0;
+    const many = list.length > 1;
+    const img = h('img', { alt: '' }), title = h('b'), count = h('span.pv-count'), meta = h('div.photo-meta');
+    const step = (d) => { if (many) show(i + d); };
+    const stage = h('div.pv-stage', img,
+      many && h('button.pv-nav.prev', { type: 'button', title: 'Previous photo', 'aria-label': 'Previous photo', onclick: () => step(-1) }, icon('back')),
+      many && h('button.pv-nav.next', { type: 'button', title: 'Next photo', 'aria-label': 'Next photo', onclick: () => step(1) }, icon('chevron')));
+    stage.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > 1.5 * Math.abs(dy)) step(dx < 0 ? 1 : -1);
+    });
+    function show(k) {
+      i = (k + list.length) % list.length;
+      const q = list[i];
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(q.blob);
+      img.src = url;
+      img.alt = q.id;
+      title.textContent = q.id;
+      count.textContent = many ? `${i + 1} / ${list.length}` : '';
+      const form = TT.FORMS[q.form], fld = form && form.fieldMap[q.field], rec = opts.records && opts.records.get(q.record);
+      meta.replaceChildren(
+        h('span', { text: [form ? `${form.short} ${TT.Ls(form.title)}` : q.form, fld ? TT.Ls(fld.q) : ''].filter(Boolean).join(' · ') }),
+        h('span', { text: [q.record, rec ? TT.lakeName(rec.data.lake) : '', TT.fmt(q.t)].filter(Boolean).join(' · ') }),
+        q.gps ? h('span', { text: TT.gpsText(q.gps) }) : '',
+        q.caption ? h('span', { text: q.caption }) : '');
+    }
+    const done = () => { if (url) URL.revokeObjectURL(url); url = null; };
+    TT.dialog((close) => {
+      const shut = () => { done(); close(); };
+      const body = h('div.dlg-body.photo-view',
+        h('div.pv-top', title, count, h('button.icon-btn', { type: 'button', title: 'Close', 'aria-label': 'Close', onclick: shut }, icon('x'))),
+        stage, meta,
+        h('div.btn-row.end',
+          h('button.btn.ghost', { type: 'button', onclick: () => TT.download(list[i].blob, list[i].id + '.jpg') }, icon('download'), 'Save copy'),
+          opts.open && h('button.btn', { type: 'button', onclick: () => { const id = list[i].record; shut(); location.hash = '#/edit/' + encodeURIComponent(id); } }, icon('file'), 'Open record')));
+      body.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1); });
+      show(i);
+      return body;
+    }, done, '.dlg-photo');
   };
 
   /* ---------------- photos ---------------- */

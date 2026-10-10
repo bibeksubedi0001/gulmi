@@ -6,7 +6,7 @@
   const S = { settings: null, device: null, open: null, carry: null, installEvt: null, cleanup: null };
 
   const NAV = [['', 'home', 'Home'], ['community', 'users', 'Community'], ['engineering', 'tool', 'Engineering'], ['map', 'map', 'Map'], ['records', 'list', 'Records'],
-    ['dashboard', 'chart', 'Dashboard'], ['guide', 'book', 'Guide'], ['data', 'sliders', 'Data']];
+    ['photos', 'image', 'Photos'], ['dashboard', 'chart', 'Dashboard'], ['guide', 'book', 'Guide'], ['data', 'sliders', 'Data']];
 
   // Fields copied into the next record by "Complete + new" (the lake is always carried).
   const CARRY = {
@@ -130,6 +130,7 @@
         case 'new': return await formView(root, parts[1], null, prev);
         case 'edit': return await formView(root, null, parts[1], prev);
         case 'records': return await recordsView(root, params);
+        case 'photos': return await photosView(root, params);
         case 'dashboard': return await TT.renderDashboard(root, { settings: S.settings, device: S.device, records: await TT.db.all('records') });
         case 'guide': return TT.renderGuide(root);
         case 'print': return await printView(root, parts[1], null);
@@ -347,6 +348,78 @@
         h('button.btn.ghost', { type: 'button', onclick: busy(async () => { const n = await TT.exportXlsx({ filter: match }); TT.toast(`Excel: ${n} records (no personal identifiers)`); }) }, icon('download'), 'Excel of this list'),
         h('a.btn.ghost', { href: '#/data' }, icon('sliders'), 'All exports & import')),
       list);
+    paint();
+  }
+
+  /* ---------------- photos ---------------- */
+  const thumbs = new Map(); // photo id -> small JPEG URL, kept while the app is open
+  async function thumbUrl(p) {
+    if (!thumbs.has(p.id)) {
+      let url = null;
+      try {
+        const bmp = await createImageBitmap(p.blob);
+        const s = Math.min(1, 360 / bmp.width), cv = document.createElement('canvas');
+        cv.width = Math.round(bmp.width * s);
+        cv.height = Math.round(bmp.height * s);
+        cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+        if (bmp.close) bmp.close();
+        const small = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.75));
+        if (small) url = URL.createObjectURL(small);
+      } catch (e) { /* no bitmap support: show the photo itself */ }
+      thumbs.set(p.id, url || URL.createObjectURL(p.blob));
+    }
+    return thumbs.get(p.id);
+  }
+
+  async function photosView(root, params) {
+    const [photos, records] = await Promise.all([TT.db.all('photos'), TT.db.all('records')]);
+    const recs = new Map(records.map((r) => [r.id, r]));
+    const byId = new Map(photos.map((p) => [p.id, p]));
+    const lakeOfP = (p) => (recs.has(p.record) ? lakeOf(recs.get(p.record)) : '');
+    const rank = (l) => { const k = TT.LAKE_IDS.indexOf(l); return k < 0 ? TT.LAKE_IDS.length : k; };
+    const time = (p) => Date.parse(p.t) || 0;
+    const lsel = h('select.inp', { 'aria-label': 'Lake' }, h('option', { value: 'all', text: 'Both lakes' }), ...TT.O.lake.map((o) => h('option', { value: o.v, text: o.en })));
+    lsel.value = TT.LAKES[params.get('lake')] ? params.get('lake') : 'all';
+    const fsel = h('select.inp', { 'aria-label': 'Form' }, h('option', { value: '', text: 'All forms' }),
+      ...TT.FORM_ORDER.filter((id) => photos.some((p) => p.form === id)).map((id) => h('option', { value: id, text: `${TT.FORMS[id].short} — ${TT.Ls(TT.FORMS[id].title)}` })));
+    const osel = h('select.inp', { 'aria-label': 'Order' }, h('option', { value: 'new', text: 'Newest' }), h('option', { value: 'old', text: 'Oldest' }));
+    const countLbl = h('span.muted');
+    const body = h('div');
+    const seen = new IntersectionObserver((entries) => entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      seen.unobserve(e.target);
+      thumbUrl(byId.get(e.target.dataset.id)).then((u) => { e.target.src = u; });
+    }), { rootMargin: '400px 0px' });
+    S.cleanup = () => seen.disconnect();
+    function tile(p, shown) {
+      const img = h('img', { alt: p.id, dataset: { id: p.id } });
+      seen.observe(img);
+      const f = TT.FORMS[p.form];
+      return h('figure.g-tile',
+        h('button.g-img', { type: 'button', title: p.caption || p.id, 'aria-label': 'View ' + p.id, onclick: () => TT.viewPhoto(p, shown, { records: recs, open: true }) }, img),
+        h('figcaption', h('b', { text: p.id }), h('span.muted', { text: TT.hhmm(new Date(p.t)) }),
+          h('a', { href: '#/edit/' + encodeURIComponent(p.record), text: `${f ? f.short + ' ' : ''}${p.record}` }),
+          p.caption ? h('small', { text: p.caption }) : ''));
+    }
+    function paint() {
+      seen.disconnect();
+      const dir = osel.value === 'old' ? 1 : -1;
+      const shown = photos.filter((p) => (!fsel.value || p.form === fsel.value) && (lsel.value === 'all' || lakeOfP(p) === lsel.value || lakeOfP(p) === 'both'))
+        .sort((a, b) => rank(lakeOfP(a)) - rank(lakeOfP(b)) || dir * (time(a) - time(b)) || a.id.localeCompare(b.id));
+      countLbl.textContent = `${shown.length} of ${photos.length}`;
+      const groups = [];
+      for (const p of shown) {
+        const lake = lakeOfP(p), day = TT.today(new Date(p.t)), last = groups[groups.length - 1];
+        if (last && last.lake === lake && last.day === day) last.items.push(p);
+        else groups.push({ lake, day, items: [p] });
+      }
+      body.replaceChildren(...(groups.length ? groups.map((g) => h('section.g-day',
+        h('h3', h('span', { text: TT.lakeName(g.lake) || 'No lake' }), h('span', { text: g.day }), h('small.muted', { text: `${g.items.length} photo${g.items.length > 1 ? 's' : ''}` })),
+        h('div.gallery-grid', ...g.items.map((p) => tile(p, shown)))))
+        : [h('p.muted', { text: photos.length ? 'No photos match.' : 'No photos yet. Photos taken in any form appear here.' })]));
+    }
+    [lsel, fsel, osel].forEach((x) => x.addEventListener('change', () => { history.replaceState(null, '', '#/photos' + (lsel.value !== 'all' ? '?lake=' + lsel.value : '')); paint(); }));
+    root.replaceChildren(h('div.page-head', h('h1', { text: 'Photos' }), countLbl), h('div.filters.three', lsel, fsel, osel), body);
     paint();
   }
 

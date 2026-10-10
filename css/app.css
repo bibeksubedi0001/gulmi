@@ -65,7 +65,7 @@ header.top { background: var(--head); color: #fff; display: flex; flex-wrap: wra
 .theme-btn:hover { background: rgba(255, 255, 255, .1); }
 .lake-tag { font-size: .8rem; font-weight: 700; color: var(--brand-text); border: 1px solid var(--brand-line); padding: 0 6px; vertical-align: middle; }
 .page-head h1 .lake-tag { font-size: .9rem; }
-@media (min-width: 1240px) { .nav { order: 0; width: auto; } .nav-a { padding: 10px 8px; } }
+@media (min-width: 1360px) { .nav { order: 0; width: auto; } .nav-a { padding: 10px 8px; } }
 main { max-width: 1040px; margin: 0 auto; padding: 16px 14px 90px; }
 
 /* ---------- generic ---------- */
@@ -288,6 +288,19 @@ details.note[open] summary { color: var(--brand-text); }
 /* ---------- records ---------- */
 .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr; gap: 8px; }
 @media (max-width: 640px) { .filters { grid-template-columns: 1fr; } }
+
+/* ---------- photo gallery ---------- */
+.filters.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g-day { margin: 16px 0 0; }
+.g-day h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 1.02rem; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.g-tile { margin: 0; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.g-img { display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; background: var(--card-alt); cursor: zoom-in; }
+.g-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.g-tile figcaption { display: flex; flex-wrap: wrap; gap: 0 8px; padding: 5px 7px 6px; font-size: .8rem; line-height: 1.35; }
+.g-tile figcaption a { flex-basis: 100%; }
+.g-tile figcaption small { flex-basis: 100%; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; } .g-tile figcaption { font-size: .74rem; padding: 4px 5px; } }
 .rec-list { display: flex; flex-direction: column; gap: 0; margin-top: 8px; border-top: 1px solid var(--line); }
 .rec-row { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-top: 0; padding: 8px 10px; }
 .rec-main { flex: 1; min-width: 0; display: flex; flex-direction: column; text-decoration: none; color: var(--ink); }
@@ -379,8 +392,18 @@ svg.chart .b-work { fill: var(--s3); } svg.chart .b-eq { fill: var(--bad); } svg
 .dlg::backdrop { background: rgba(10, 22, 27, .55); }
 .dlg-body { padding: 18px; }
 .dlg-msg { font-weight: 700; font-size: 1.08rem; }
-.photo-view img { display: block; max-width: 100%; max-height: 68vh; margin: 0 auto 10px; }
-.photo-meta { display: flex; flex-direction: column; gap: 2px; font-size: .92rem; }
+.dlg.dlg-photo { width: min(1100px, 98vw); max-width: 98vw; max-height: 98vh; }
+.photo-view { padding: 10px 12px 12px; }
+.pv-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.pv-count { margin-left: auto; color: var(--muted); font-size: .9rem; }
+.pv-stage { position: relative; display: grid; place-items: center; min-height: 180px; background: #0d1416; touch-action: pan-y; }
+.photo-view img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; }
+.pv-nav { position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 64px; padding: 0; border: 0; background: rgba(0, 0, 0, .45); color: #fff; cursor: pointer; }
+.pv-nav:hover { background: rgba(0, 0, 0, .7); }
+.pv-nav.prev { left: 0; }
+.pv-nav.next { right: 0; }
+.pv-nav .ic { width: 28px; height: 28px; }
+.photo-meta { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; font-size: .92rem; }
 #toasts { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 6px; width: min(520px, 92vw); }
 .toast { background: var(--toast); color: #fff; padding: 11px 14px; border-left: 4px solid #8fbfa8; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); transition: opacity .4s; font-size: .98rem; }
 .toast.bad { background: var(--bad-fill); border-left-color: #f0b4ad; } .toast.warn { background: #6e4300; border-left-color: #e2c48f; }

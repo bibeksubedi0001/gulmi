@@ -1,5 +1,5 @@
 /* Lakes field portal: offline app shell (cache-first; new versions activate when the user taps "Update now"). */
-const VERSION = 'timure-portal-v1.9.0';
+const VERSION = 'timure-portal-v1.10.0';
 const TILE_CACHE = 'gulmi-tiles-v1';
 const TILE_MAX = 1500;
 // File -> SHA-256, written by _scratch/stamp_sw.py before each deploy. HTML is not hashed: Cloudflare injects a script into it.
@@ -7,20 +7,20 @@ const ASSETS = {
   './': null,
   'index.html': null,
   'manifest.webmanifest': '861bf12031c55f391bf6ce31b2e55c1016b9aecf5a26bf40b6bd323ca6b40a46',
-  'css/app.css': 'd3f9ff76ac1cf40a693483833a8924333dbdc129f1b4ad73878adcfc33b8fa7a',
+  'css/app.css': 'd9db5bf2a92998191da03533e6f389c5cd8fe11b1fa074055055d89143482d4f',
   'js/theme.js': '43ab2842d5469528e4d2ad9f70ae7f3bbcbf9efcb08b320dc2c4e024c29b8467',
-  'js/util.js': '803bb21f02d940a9f3a1f1a4bff06ac3ebe23b902c1a767e6fac27ea026e6208',
+  'js/util.js': '00d9833235862426b09d929f69768af6ed72f17d288d92797104cbf36a53d1be',
   'js/geo.js': 'f90c6ead8598e3d8733c0d446250bf1b3138a27ba44f3ae262a3b357d194507f',
   'js/db.js': 'a2342d8fe20c7367f59120c8cb15609fcc1744fe8cb9afd1f1450526c36c946e',
   'js/schema-common.js': '785dd6e8bcf11bff291e13a838b966f428699b24bef0b9aba7298460d3515e52',
-  'js/engine.js': '27f33bc109374780818cb15caa6c6c23091bd078629787f17b56dabad3a2f9c1',
+  'js/engine.js': '136c1f1ba4b9a052ca3cafb5ba3cc684039e71c4f272baffe581d5f17908927d',
   'js/forms-community.js': '14b838b619220f3e2cc4744d1afef5d3dbdc862eb779668018989d09e752e6fd',
   'js/forms-engineering.js': '8708b1ce0e58db61085c0abafafc1d59e29466d49b50c40d20039646c3e38651',
   'js/exporter.js': '95dca5c7d894fc3c9ff2a1ad6c52d7d7cf063487bbff2928722dcbeaa52b1f18',
   'js/dashboard.js': '46fd9c5b79038c3d8d2415fdb3966ddc5dcd930245eceb5cf44efe775480eee6',
   'js/map.js': '6841ca2764f5487c2361f534a24c3521eadc87f3439acbee89294b56a2270533',
-  'js/guide.js': '2a03eb6d63cf48b340d4d405c3d711825b042c9bda3232c8c6e0dd97dfefe104',
-  'js/app.js': 'b46598dfe1f279edda880b0c784201d58c1c832d785693ecc507c9997f3d42cb',
+  'js/guide.js': '59b03b3a9b52755c3c008b6f1bbd23ca48180b959d70ed28f00f9a97cf4c6973',
+  'js/app.js': '1072d315653a82ff460b81e5905fd5e8ecf159ed28825a6269fb50c79979b314',
   'vendor/xlsx.mini.min.js': '0cb353f830d7288385492c83d277b058ddeac664ca51cf1393aa1fd3e2b70939',
   'vendor/leaflet/leaflet.js': 'db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a',
   'vendor/leaflet/leaflet.css': '337bfca5cabd03b39815b2700febe2b3b7edf55921c59cd49f88ecb328212303',

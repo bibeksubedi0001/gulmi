@@ -3,7 +3,7 @@
 (function () {
   const TT = (window.TT = window.TT || {});
 
-  TT.VERSION = '1.9.0';
+  TT.VERSION = '1.10.0';
   // Versioned URL for lazily loaded files, so a CDN copy from an older release is never used.
   TT.asset = (p) => `${p}${p.includes('?') ? '&' : '?'}v=${TT.VERSION}`;
   TT.APP = 'timure-taal-portal';
