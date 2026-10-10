@@ -94,90 +94,283 @@
     used.add(name);
     return name;
   };
-  function addSheet(wb, used, title, rows, header) {
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const DT = 'yyyy-mm-dd hh:mm', DAY = 'yyyy-mm-dd';
+  const GPS_PARTS = [['lat', 'latitude'], ['lon', 'longitude'], ['acc', 'accuracy (m)'], ['alt', 'altitude (m)'], ['e', 'UTM 44N E (m)'], ['n', 'UTM 44N N (m)']];
+  const RANKS = ['1st', '2nd', '3rd', '4th', '5th'];
+  const bare = (s) => String(s).replace(/\s*\([^)]*\)\s*$/, '');
+  const head = (f, part) => `${f.num ? f.num + ' ' : ''}${TT.Ls(f.q || f.label, 'en')}${part ? ' – ' + part : f.unit ? ` (${f.unit})` : ''}`;
+  // Excel wants local wall-clock dates: form values are local ("2026-10-07T11:31"), record stamps are UTC ISO.
+  const asDate = (s) => {
+    if (!s) return null;
+    const m = /^(\d{4})-(\d\d)-(\d\d)(?:[T ](\d\d):(\d\d))?$/.exec(String(s));
+    const d = m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : new Date(s);
+    return isNaN(d) ? String(s) : d;
+  };
+  const gpsPart = (g, k) => {
+    if (!g || !Number.isFinite(g.lat) || !Number.isFinite(g.lon)) return null;
+    if (k === 'lat' || k === 'lon') return r6(g[k]);
+    if (k === 'acc' || k === 'alt') return Number.isFinite(g[k]) ? g[k] : null;
+    const u = TT.utm(g.lat, g.lon);
+    return r2(k === 'e' ? u.e : u.n);
+  };
+  const cellValue = (f, x) => {
+    if (x == null || x === '' || (Array.isArray(x) && !x.length)) return null;
+    switch (f.type) {
+      case 'number': case 'integer': return TT.num(x) ?? String(x);
+      case 'select': case 'radio': case 'yn': case 'scale': case 'bsyear': case 'person': return TT.optLabel(f, x);
+      case 'checks': case 'months': case 'people': return (Array.isArray(x) ? x : [x]).map((y) => TT.optLabel(f, y)).join('; ');
+      case 'check': return x ? 'Yes' : 'No';
+      case 'photos': return x.join(', ');
+      default: return typeof x === 'number' ? x : typeof x === 'object' ? TT.valueText(f, x) : String(x);
+    }
+  };
+  const statusText = (r) => (r.status === 'complete' ? 'Complete' : 'Draft');
+  const lakeText = (r) => TT.lakeName(r.data.lake) || r.data.lake || '';
+  const lakeRank = (id) => { const i = TT.LAKE_IDS.indexOf(id); return i < 0 ? TT.LAKE_IDS.length : i; };
+  const whenOf = (r) => {
+    const form = TT.FORMS[r.form], f = form && form.fields.find((x) => x.type === 'datetime' || x.type === 'date');
+    return (f && r.data[f.id]) || r.created;
+  };
+  // Records grouped by lake (Timure, Chhekmi, both), then form, then date.
+  TT.sortRecords = (recs) => recs.map((r) => { const d = asDate(whenOf(r)); return [r, d instanceof Date ? d.getTime() : 0]; })
+    .sort(([a, ta], [b, tb]) => lakeRank(a.data.lake) - lakeRank(b.data.lake) || TT.FORM_ORDER.indexOf(a.form) - TT.FORM_ORDER.indexOf(b.form) || ta - tb || a.id.localeCompare(b.id))
+    .map(([r]) => r);
+
+  // One worksheet from column specs {h, get, fmt}; book.meta drives the styling pass after writing.
+  function addTable(book, title, cols, items, opts = {}) {
     const XLSX = window.XLSX;
-    const ws = header ? XLSX.utils.json_to_sheet(rows, { header }) : XLSX.utils.json_to_sheet(rows);
-    const keys = header || (rows[0] ? Object.keys(rows[0]) : []);
-    ws['!cols'] = keys.map((k) => ({ wch: Math.min(48, Math.max(10, String(k).length + 2)) }));
-    XLSX.utils.book_append_sheet(wb, ws, sheetName(title, used));
+    const aoa = [cols.map((c) => c.h), ...items.map((it) => cols.map((c) => { const x = c.get(it); return x === '' || x === undefined ? null : x; }))];
+    const ws = XLSX.utils.aoa_to_sheet(aoa, { dateNF: DT });
+    cols.forEach((c, j) => {
+      if (c.fmt !== DAY) return;
+      for (let i = 1; i < aoa.length; i++) { const cell = ws[XLSX.utils.encode_cell({ r: i, c: j })]; if (cell && cell.t === 'n') cell.z = DAY; }
+    });
+    const widths = cols.map((c, j) => {
+      let w = Math.min(c.h.length + 2, 24);
+      for (let i = 1; i < aoa.length; i++) { const x = aoa[i][j]; if (x != null) w = Math.max(w, x instanceof Date ? 16 : String(x).length + 1); }
+      return Math.min(w, opts.maxWidth || 50);
+    });
+    ws['!cols'] = widths.map((wch) => ({ wch }));
+    const lines = Math.max(1, ...cols.map((c, j) => Math.ceil(c.h.length / Math.max(widths[j] - 1, 1))));
+    ws['!rows'] = [{ hpt: 4 + 15 * Math.min(lines, 5) }];
+    if (items.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: items.length, c: cols.length - 1 } }) };
+    const name = opts.exact ? title : sheetName(title, book.used);
+    XLSX.utils.book_append_sheet(book.wb, ws, name);
+    book.meta[name] = { freeze: opts.freeze || [1, 1], bold: [1], rows: items.length, about: opts.about || '' };
+    return name;
   }
 
-  function headerFor(form, pii) {
-    const cols = ['record_id', 'form', 'status', 'created', 'updated', 'enumerator', 'device', 'summary'];
+  // Form sheet: ID, lake, status, every question in form order, then question notes and who/when.
+  function formColumns(form, pii) {
+    const cols = [{ h: 'Record ID', get: (r) => r.id }, { h: 'Lake', get: lakeText }, { h: 'Status', get: statusText }];
     for (const f of form.fields) {
-      if (f.type === 'info' || (f.pii && !pii)) continue;
-      const key = colKey(f);
-      if (f.type === 'gps') cols.push(...Object.keys(gpsCols(key, null)));
-      else if (f.type === 'grid') f.rows.forEach((r) => f.cols.forEach((c) => cols.push(`${key}.${r.v}${f.cols.length > 1 ? '.' + c.v : ''}`)));
-      else if (f.type === 'rank') { cols.push(key); for (let i = 0; i < (f.max || 3); i++) cols.push(`${key}_${i + 1}`); }
-      else if (f.type === 'table') cols.push(key + '_rows');
-      else cols.push(key);
-      if (f.other) cols.push(key + '_other');
-      if (f.evidence) cols.push(key + '_source');
+      if (f.type === 'info' || f.id === 'lake' || (f.pii && !pii)) continue;
+      const val = (r) => (TT.visible(f, r.data) ? r.data[f.id] : undefined);
+      if (f.type === 'gps') GPS_PARTS.forEach(([k, part]) => cols.push({ h: head(f, part), get: (r) => gpsPart(val(r), k) }));
+      else if (f.type === 'grid') {
+        f.rows.forEach((row) => f.cols.forEach((c) => cols.push({ h: head(f, TT.Ls(row, 'en') + (f.cols.length > 1 ? ', ' + TT.Ls(c, 'en') : '')),
+          get: (r) => { const x = ((val(r) || {})[row.v] || {})[c.v]; const sc = x != null && f.scale.find((s) => s.v === x); return sc ? TT.Ls(sc, 'en') : x; } })));
+      } else if (f.type === 'rank') {
+        for (let i = 0; i < (f.max || 3); i++) cols.push({ h: head(f, RANKS[i]), get: (r) => { const x = val(r); return x && x[i] ? TT.optLabel(f, x[i]) : null; } });
+      } else if (f.type === 'table') cols.push({ h: head(f, 'rows'), get: (r) => { const x = val(r); return Array.isArray(x) ? x.filter((o) => o && Object.keys(o).length).length || null : null; } });
+      else if (f.type === 'track') cols.push({ h: head(f, 'GPS points'), get: (r) => { const x = val(r); return Array.isArray(x) && x.length ? x.length : null; } });
+      else if (f.type === 'datetime' || f.type === 'date') cols.push({ h: head(f), get: (r) => asDate(val(r)), fmt: f.type === 'date' ? DAY : DT });
+      else cols.push({ h: head(f), get: (r) => cellValue(f, val(r)) });
+      if (f.other) cols.push({ h: head(f, 'other (specify)'), get: (r) => (TT.visible(f, r.data) ? r.data[f.id + '__other'] : null) });
+      if (f.evidence) cols.push({ h: head(f, 'how known'), get: (r) => (TT.visible(f, r.data) && r.data[f.id + '__src'] ? TT.optLabel({ options: TT.O.src }, r.data[f.id + '__src']) : null) });
     }
-    cols.push('notes');
+    cols.push({ h: 'Question notes', get: (r) => form.fields.filter((f) => f.type !== 'info' && (!f.pii || pii) && TT.visible(f, r.data) && r.data[f.id + '__note']).map((f) => `${f.num}: ${r.data[f.id + '__note']}`).join(' | ') },
+      { h: 'Entered by', get: (r) => r.enumerator }, { h: 'Device', get: (r) => r.device },
+      { h: 'Created', get: (r) => asDate(r.created), fmt: DT }, { h: 'Last edited', get: (r) => asDate(r.updated), fmt: DT });
     return cols;
   }
 
-  function codebook(pii) {
-    const out = [];
+  const ID_FIELDS = ['fid', 'sample_id', 'mark_id', 'test_id', 'site_id', 'tr_id'];
+  // Sub-table sheet (soundings, readings, trials, works): one row per entry, linked to its record by Record ID.
+  function tableColumns(form, f, pii) {
+    const idf = ID_FIELDS.map((id) => form.fieldMap[id]).find(Boolean);
+    const cols = [{ h: 'Record ID', get: (t) => t.rec.id }, { h: 'Lake', get: (t) => lakeText(t.rec) }];
+    if (idf) cols.push({ h: TT.Ls(idf.q, 'en'), get: (t) => t.rec.data[idf.id] });
+    cols.push({ h: 'Row', get: (t) => t.i + 1 });
+    for (const c of f.columns) {
+      if (c.pii && !pii) continue;
+      const val = (t) => (c.computed ? t.comp[t.i] && t.comp[t.i][c.id] : t.row[c.id]);
+      if (c.type === 'gps') GPS_PARTS.forEach(([k, part]) => cols.push({ h: head(c, part), get: (t) => gpsPart(val(t), k) }));
+      else cols.push({ h: head(c), get: (t) => { const x = val(t); return typeof x === 'number' ? Math.round(x * 1e4) / 1e4 : cellValue(c, x); } });
+    }
+    return cols;
+  }
+
+  const TYPE_TEXT = { select: 'one choice', radio: 'one choice', yn: 'yes / no', check: 'yes / no', scale: 'rating', bsyear: 'year (BS)', person: 'team member',
+    people: 'team members', checks: 'several choices, ; separated', months: 'months, ; separated', rank: 'ranking', grid: 'rating per period', number: 'number',
+    integer: 'whole number', computed: 'calculated', text: 'text', textarea: 'text', datetime: 'date and time', date: 'date', gps: 'GPS position',
+    photos: 'photo IDs (see Photos)', table: 'table (rows on their own sheet)', track: 'GPS track' };
+  const optList = (f) => (f.options || f.scale || []).map((o) => `${o.v} = ${TT.Ls(o, 'en')}`).join('; ');
+  function codebookRows(pii, sheetOf) {
+    const all = 'Every form sheet';
+    const rows = [
+      { sheet: all, column: 'Record ID', question: 'Unique ID: form code, device code and number' },
+      { sheet: all, column: 'Lake', question: 'Lake the record belongs to' },
+      { sheet: all, column: 'Status', question: 'Complete, or Draft (not finished)' },
+      { sheet: all, column: 'Question notes', question: 'Notes added to single questions, as "question no.: note"' },
+      { sheet: all, column: 'Entered by, Device, Created, Last edited', question: 'Who entered the record, on which phone, and when' },
+    ];
     for (const id of TT.FORM_ORDER) {
       const form = TT.FORMS[id];
       for (const f of form.fields) {
-        if (f.type === 'info' || (f.pii && !pii)) continue;
-        out.push({
-          form: form.short, column: colKey(f), type: f.type, report_ref: f.ref ? 'R' + f.ref : '',
-          question: TT.Ls(f.q, 'en'),
-          asked_when: TT.whenText(form, f) || (f.section._dep ? TT.whenText(form, f.section) : ''),
-          unit: f.unit || '', options: (f.options || f.scale || []).map((o) => `${o.v}=${TT.Ls(o, 'en')}`).join('; '),
-          personal_data: f.pii ? 'yes' : '',
-        });
+        if (f.type === 'info' || f.id === 'lake' || (f.pii && !pii)) continue;
+        const parts = f.type === 'gps' ? GPS_PARTS.map((p) => p[1]) : f.type === 'rank' ? RANKS.slice(0, f.max || 3) : f.type === 'grid' ? f.rows.map((r) => TT.Ls(r, 'en')) : [];
+        rows.push({ sheet: sheetOf[id] || `${form.short} (no records yet)`, column: head(f) + (parts.length ? ` – ${parts.join(' / ')}` : ''), question: TT.Ls(f.q, 'en'),
+          section: TT.Ls(f.section.title, 'en'), type: TYPE_TEXT[f.type] || f.type, unit: f.unit, options: optList(f),
+          when: TT.whenText(form, f) || (f.section._dep ? TT.whenText(form, f.section) : ''), pii: f.pii ? 'yes' : '' });
+        if (f.type !== 'table') continue;
+        for (const c of f.columns) {
+          if (c.pii && !pii) continue;
+          rows.push({ sheet: sheetOf[`${id}.${f.id}`] || `${form.short} (no rows yet)`, column: head(c), question: TT.Ls(c.label, 'en'), section: `${f.num} ${TT.Ls(f.q, 'en')}`,
+            type: c.computed ? 'calculated' : TYPE_TEXT[c.type] || c.type, unit: c.unit, options: optList(c), pii: c.pii ? 'yes' : '' });
+        }
       }
     }
-    return out;
+    return rows;
   }
 
   TT.buildWorkbook = async function ({ records, photos, pii = false, ctx }) {
     await TT.loadScript(TT.asset(XLSX_SRC));
     const XLSX = window.XLSX;
-    const wb = XLSX.utils.book_new();
-    const used = new Set();
+    const book = { wb: XLSX.utils.book_new(), used: new Set(['README', 'Summary']), meta: {} };
+    const recs = TT.sortRecords(records);
+    const byId = new Map(recs.map((r) => [r.id, r]));
     const byForm = {};
-    records.forEach((r) => (byForm[r.form] = byForm[r.form] || []).push(r));
-    const readme = [
-      { item: 'Project', value: 'Timure Taal and Chhekmi Taal — preliminary engineering investigation of declining water levels (Gulmi)' },
-      ...TT.LAKE_IDS.map((id) => { const c = TT.lakeCentre(id); return { item: `${TT.lakeName(id)} (${TT.lakeCode(id)}) centre`, value: c ? `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}` : 'not set' }; }),
-      { item: 'Exported', value: new Date().toISOString() },
-      { item: 'Device code', value: ctx.device },
-      { item: 'Records', value: records.length },
-      { item: 'Personal identifiers included', value: pii ? 'YES — handle as confidential' : 'No (names/phones removed)' },
-      { item: 'Coordinates', value: 'WGS84 lat/lon + UTM zone 44N (EPSG:32644) metres, as used in the QGIS catchment work' },
-      { item: 'Column names', value: '<question no.>_<field id>; see Codebook. Skipped (not applicable) questions are blank. *_source = how the respondent knows (seen / heard).' },
-      ...TT.FORM_ORDER.filter((id) => byForm[id]).map((id) => ({ item: TT.FORMS[id].short + ' records', value: byForm[id].length })),
-    ];
-    addSheet(wb, used, 'README', readme);
-    addSheet(wb, used, 'All records', records.map((r) => {
-      const form = TT.FORMS[r.form];
-      const g = form && form.geo ? r.data[form.geo] : null;
-      return { record_id: r.id, lake: TT.lakeName(r.data.lake), form: form ? form.short : r.form, title: form ? TT.Ls(form.title, 'en') : '', status: r.status, created: TT.fmt(r.created), updated: TT.fmt(r.updated), enumerator: r.enumerator || '', summary: form ? safeSummary(form, r.data) : '', ...gpsCols('gps', g) };
-    }));
+    recs.forEach((r) => (byForm[r.form] = byForm[r.form] || []).push(r));
+    const nPhotos = {};
+    photos.forEach((p) => (nPhotos[p.record] = (nPhotos[p.record] || 0) + 1));
+    const sheetOf = {};
+
+    const geoOf = (r) => { const form = TT.FORMS[r.form]; return form.geo && TT.visible(form.fieldMap[form.geo], r.data) ? r.data[form.geo] : null; };
+    const whoOf = (r) => { const f = TT.FORMS[r.form].fields.find((x) => x.type === 'person' || x.type === 'people'); const v = f && r.data[f.id]; return v && v.length ? TT.valueText(f, v, r.data) : r.enumerator; };
+    addTable(book, 'All records', [
+      { h: 'Record ID', get: (r) => r.id }, { h: 'Lake', get: lakeText }, { h: 'Form', get: (r) => `${TT.FORMS[r.form].short} ${TT.Ls(TT.FORMS[r.form].title, 'en')}` },
+      { h: 'Status', get: statusText }, { h: 'Date & time', get: (r) => asDate(whenOf(r)), fmt: DT }, { h: 'Recorded by', get: whoOf },
+      { h: 'Summary', get: (r) => safeSummary(TT.FORMS[r.form], r.data) },
+      ...GPS_PARTS.map(([k, part]) => ({ h: `GPS ${part}`, get: (r) => gpsPart(geoOf(r), k) })), { h: 'Photos', get: (r) => nPhotos[r.id] },
+    ], recs, { about: 'Every record in one list: lake, form, date, who, a one-line summary and the main GPS position' });
+
     for (const id of TT.FORM_ORDER) {
-      const recs = byForm[id];
-      if (!recs) continue;
-      const form = TT.FORMS[id];
-      const flat = recs.map((r) => TT.flatten(form, r, { pii, ctx }));
-      addSheet(wb, used, `${form.short} ${TT.Ls(form.title, 'en')}`, flat.map((x) => x.row), headerFor(form, pii));
-      const tabs = {};
-      flat.forEach((x, i) => x.tables.forEach((t) => (tabs[t.field.id] = tabs[t.field.id] || { field: t.field, rows: [] }).rows.push(...tableRows(form, t, recs[i].id, pii))));
-      Object.values(tabs).forEach((t) => addSheet(wb, used, `${form.short} ${t.field.id}`, t.rows));
+      const list = byForm[id];
+      if (!list) continue;
+      const form = TT.FORMS[id], title = TT.Ls(form.title, 'en');
+      sheetOf[id] = addTable(book, `${form.short} ${bare(title)}`, formColumns(form, pii), list, { about: `${title}: one row per record` });
+      for (const f of form.fields) {
+        if (f.type !== 'table') continue;
+        const items = list.flatMap((rec) => {
+          if (!TT.visible(f, rec.data)) return [];
+          const rows = (Array.isArray(rec.data[f.id]) ? rec.data[f.id] : []).filter((o) => o && Object.keys(o).length);
+          const comp = TT.tableComputed(f, rows, rec.data, ctx);
+          return rows.map((row, i) => ({ rec, row, i, comp }));
+        });
+        if (items.length) sheetOf[`${id}.${f.id}`] = addTable(book, `${form.short} ${bare(TT.Ls(f.q, 'en'))}`, tableColumns(form, f, pii), items,
+          { about: `${TT.Ls(f.q, 'en')} (${form.short} ${f.num}): one row per entry, linked by Record ID` });
+      }
     }
-    const wl = TT.analysis ? TT.analysis.waterLevel(records, ctx) : [];
-    if (wl.length) addSheet(wb, used, 'WL series (derived)', wl.map((p) => ({ record_id: p.id, gauge: p.gauge, datetime: TT.fmt(p.t), reading_m: p.reading, wsl_rl_m: p.wsl ?? '', rain_since: p.rain, interval_h: p.dtH ?? '', fall_mm_per_day: p.rate ?? '', screening_flag: p.flag || '' })));
-    if (photos.length) addSheet(wb, used, 'Photos', photos.map((p) => ({ photo_id: p.id, record_id: p.record, form: p.form, field: p.field, caption: p.caption || '', logged: TT.fmt(p.t), lat: p.gps ? r6(p.gps.lat) : '', lon: p.gps ? r6(p.gps.lon) : '', acc_m: p.gps ? p.gps.acc : '', width: p.w, height: p.h, size_kb: Math.round((p.size || 0) / 1024) })));
-    addSheet(wb, used, 'Codebook', codebook(pii));
-    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
-    return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const wl = (TT.analysis ? TT.analysis.waterLevel(recs, ctx) : []).map((p) => ({ ...p, rec: byId.get(p.id) }))
+      .sort((a, b) => lakeRank(a.rec && a.rec.data.lake) - lakeRank(b.rec && b.rec.data.lake) || a.gauge.localeCompare(b.gauge) || a.t - b.t);
+    if (wl.length) {
+      const rain = TT.FORMS.wl.fieldMap.rain_since;
+      addTable(book, 'Water levels (derived)', [
+        { h: 'Record ID', get: (p) => p.id }, { h: 'Lake', get: (p) => (p.rec ? lakeText(p.rec) : null) }, { h: 'Gauge', get: (p) => p.gauge },
+        { h: 'Date & time', get: (p) => p.t, fmt: DT }, { h: 'Staff reading (m)', get: (p) => p.reading }, { h: 'Water-surface RL (m)', get: (p) => p.wsl },
+        { h: 'Rain since the previous reading', get: (p) => (p.rain ? TT.optLabel(rain, p.rain) : null) }, { h: 'Hours since the previous reading', get: (p) => p.dtH },
+        { h: 'Fall (mm/day)', get: (p) => p.rate }, { h: 'Screening flag', get: (p) => p.flag },
+      ], wl, { about: 'Water-level readings per gauge in time order, with the fall rate between readings and a seepage screening flag' });
+    }
+
+    if (photos.length) {
+      const order = new Map(recs.map((r, i) => [r.id, i]));
+      const qOf = (p) => { const f = TT.FORMS[p.form] && TT.FORMS[p.form].fieldMap[p.field]; return f ? head(f) : p.field; };
+      addTable(book, 'Photos', [
+        { h: 'Photo ID', get: (p) => p.id }, { h: 'Record ID', get: (p) => p.record }, { h: 'Lake', get: (p) => (byId.get(p.record) ? lakeText(byId.get(p.record)) : null) },
+        { h: 'Form', get: (p) => (TT.FORMS[p.form] ? TT.FORMS[p.form].short : p.form) }, { h: 'Question', get: qOf }, { h: 'Caption', get: (p) => p.caption },
+        { h: 'Taken', get: (p) => asDate(p.t), fmt: DT }, ...GPS_PARTS.slice(0, 3).map(([k, part]) => ({ h: `GPS ${part}`, get: (p) => gpsPart(p.gps, k) })),
+        { h: 'Width (px)', get: (p) => p.w }, { h: 'Height (px)', get: (p) => p.h }, { h: 'Size (KB)', get: (p) => Math.round((p.size || 0) / 1024) },
+      ], [...photos].sort((a, b) => (order.get(a.record) ?? 1e9) - (order.get(b.record) ?? 1e9) || a.id.localeCompare(b.id)),
+      { about: 'Photo list in record order; the image files are in photos/ of the field package (file name = Photo ID)' });
+    }
+
+    addTable(book, 'Codebook', [
+      { h: 'Sheet', get: (x) => x.sheet }, { h: 'Column', get: (x) => x.column }, { h: 'Question', get: (x) => x.question }, { h: 'Section', get: (x) => x.section },
+      { h: 'Answer type', get: (x) => x.type }, { h: 'Unit', get: (x) => x.unit }, { h: 'Options (code = label)', get: (x) => x.options },
+      { h: 'Asked when', get: (x) => x.when }, { h: 'Personal data', get: (x) => x.pii },
+    ], codebookRows(pii, sheetOf), { about: 'Every question: column header, full question, answer type, unit, options and when it is asked', freeze: [2, 1], maxWidth: 60 });
+
+    const lakeKeys = [...new Set([...TT.LAKE_IDS, ...recs.map((r) => r.data.lake || '')])];
+    const count = (id, k, st) => recs.filter((r) => (!id || r.form === id) && (r.data.lake || '') === k && (!st || r.status === st)).length;
+    const sumCols = [{ h: 'Form', get: (x) => x.title }, { h: 'Code', get: (x) => x.code }];
+    lakeKeys.forEach((k) => {
+      const name = TT.lakeName(k) || 'No lake';
+      sumCols.push({ h: `${name} \u2013 complete`, get: (x) => count(x.id, k, 'complete') }, { h: `${name} \u2013 draft`, get: (x) => count(x.id, k, 'draft') });
+    });
+    sumCols.push({ h: 'Total', get: (x) => recs.filter((r) => !x.id || r.form === x.id).length });
+    addTable(book, 'Summary', sumCols, [...TT.FORM_ORDER.map((id) => ({ id, title: TT.Ls(TT.FORMS[id].title, 'en'), code: TT.FORMS[id].short })), { id: null, title: 'All forms', code: '' }],
+      { exact: true, about: 'Number of records per form and lake (complete and draft)' });
+
+    const order = ['README', 'Summary', ...book.wb.SheetNames.filter((s) => s !== 'Summary')];
+    const rd = [
+      ['Timure Taal and Chhekmi Taal: field survey data'], [],
+      ['Exported', new Date()], ['Device', ctx.device], ['Portal version', TT.VERSION], ['Records', recs.length], ['Photos', photos.length],
+      ['Personal data', pii ? 'Included: names and phone numbers (confidential)' : 'Removed: names and phone numbers'],
+      ...TT.LAKE_IDS.map((id) => { const c = TT.lakeCentre(id); return [`${TT.lakeName(id)} (${TT.lakeCode(id)}) centre`, c ? `${c.lat.toFixed(6)} N, ${c.lon.toFixed(6)} E` : 'not set']; }),
+      ['Coordinates', 'WGS84 latitude / longitude; UTM zone 44N (EPSG:32644) in metres'],
+      ['Order', 'Rows are grouped by lake (Timure first, then Chhekmi), then by date and time (local time of the phone)'],
+      ['Headers', 'Question number and question as in the form, unit in brackets; the Codebook lists every question with its options'],
+      ['Blank cell', 'Question not asked (skipped) or not answered'],
+      [], ['Sheet', 'Contents', 'Rows'],
+      ...order.slice(1).map((s) => [s, book.meta[s].about, book.meta[s].rows]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rd, { dateNF: DT });
+    ws['!cols'] = [{ wch: 30 }, { wch: 110 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(book.wb, ws, 'README');
+    book.meta.README = { freeze: null, bold: [1, rd.length - order.length + 1] };
+    book.wb.SheetNames = order;
+
+    const opts = { bookType: 'xlsx', type: 'array', bookSST: true };
+    try { return await polish(XLSX.write(book.wb, { ...opts, compression: false }), order.map((s) => book.meta[s])); } catch (e) { console.error(e); }
+    return new Blob([XLSX.write(book.wb, { ...opts, compression: true })], { type: XLSX_MIME });
   };
+
+  // SheetJS CE writes no cell styles or frozen panes: give each sheet a bold, shaded, wrapped header and freeze it with the ID column.
+  async function polish(buf, metas) {
+    const parts = await TT.unzip(new Blob([buf]));
+    const dec = new TextDecoder(), enc = new TextEncoder();
+    let sty = dec.decode(parts['xl/styles.xml']);
+    const add = (tag, xml) => {
+      const m = new RegExp(`<${tag} count="(\\d+)">`).exec(sty);
+      if (!m || !sty.includes(`</${tag}>`)) throw new Error(`styles.xml has no <${tag}>`);
+      sty = sty.replace(m[0], `<${tag} count="${+m[1] + 1}">`).replace(`</${tag}>`, `${xml}</${tag}>`);
+      return +m[1];
+    };
+    const font = add('fonts', '<font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>');
+    const fill = add('fills', '<fill><patternFill patternType="solid"><fgColor rgb="FFDDE7F0"/><bgColor indexed="64"/></patternFill></fill>');
+    const border = add('borders', '<border><left/><right/><top/><bottom style="thin"><color rgb="FF7F9DB9"/></bottom><diagonal/></border>');
+    const xf = add('cellXfs', `<xf numFmtId="0" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>`);
+    parts['xl/styles.xml'] = enc.encode(sty);
+    metas.forEach((m, i) => {
+      const key = `xl/worksheets/sheet${i + 1}.xml`;
+      if (!m || !parts[key]) return;
+      let x = dec.decode(parts[key]);
+      for (const r of m.bold) x = x.replace(new RegExp(`(<row r="${r}"[^>/]*>)([\\s\\S]*?</row>)`), (s, open, rest) => open + rest.replace(/<c r="([A-Z]+\d+)"(?: s="\d+")?/g, `<c r="$1" s="${xf}"`));
+      if (m.freeze) {
+        const [cx, ry] = m.freeze, tl = window.XLSX.utils.encode_cell({ r: ry, c: cx });
+        const pane = cx && ry ? 'bottomRight' : ry ? 'bottomLeft' : 'topRight';
+        x = x.replace('<sheetView workbookViewId="0"/>', `<sheetView workbookViewId="0"><pane${cx ? ` xSplit="${cx}"` : ''}${ry ? ` ySplit="${ry}"` : ''} topLeftCell="${tl}" activePane="${pane}" state="frozen"/><selection pane="${pane}" activeCell="${tl}" sqref="${tl}"/></sheetView>`);
+      }
+      parts[key] = enc.encode(x);
+    });
+    const files = [];
+    for (const [name, data] of Object.entries(parts)) files.push({ name, data, z: await deflate(data) });
+    return new Blob([TT.zip(files)], { type: XLSX_MIME });
+  }
 
   /* ------------------------------ GIS features ------------------------------ */
   TT.collectFeatures = function (records, { pii = false, ctx = {} } = {}) {
@@ -249,7 +442,7 @@
     return new Blob([doc], { type: 'application/vnd.google-earth.kml+xml' });
   };
 
-  /* ------------------------------ ZIP (store; read store or deflate) ------------------------------ */
+  /* ------------------------------ ZIP (store or deflate; read store or deflate) ------------------------------ */
   const CRC = (() => {
     const t = new Uint32Array(256);
     for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[i] = c >>> 0; }
@@ -257,7 +450,12 @@
   })();
   const crc32 = (b) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
   const dos = (d) => ({ time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() });
+  // Raw deflate where the browser has CompressionStream('deflate-raw'); null = store the entry.
+  const deflate = async (data) => {
+    try { return new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()); } catch (e) { return null; }
+  };
 
+  // files: [{ name, data, z? }] where z is the raw-deflated data.
   TT.zip = function (files) {
     const enc = new TextEncoder();
     const parts = [], central = [];
@@ -266,19 +464,20 @@
     for (const f of files) {
       const name = enc.encode(f.name);
       const data = f.data;
+      const packed = f.z && f.z.length < data.length ? f.z : data, method = packed === data ? 0 : 8;
       const crc = crc32(data);
       const lh = new DataView(new ArrayBuffer(30));
-      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, method, true);
       lh.setUint16(10, now.time, true); lh.setUint16(12, now.date, true); lh.setUint32(14, crc, true);
-      lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
-      parts.push(new Uint8Array(lh.buffer), name, data);
+      lh.setUint32(18, packed.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+      parts.push(new Uint8Array(lh.buffer), name, packed);
       const ch = new DataView(new ArrayBuffer(46));
-      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, method, true);
       ch.setUint16(12, now.time, true); ch.setUint16(14, now.date, true); ch.setUint32(16, crc, true);
-      ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
+      ch.setUint32(20, packed.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
       ch.setUint32(42, offset, true);
       central.push(new Uint8Array(ch.buffer), name);
-      offset += 30 + name.length + data.length;
+      offset += 30 + name.length + packed.length;
     }
     const size = central.reduce((s, c) => s + c.length, 0);
     const end = new DataView(new ArrayBuffer(22));
@@ -337,20 +536,53 @@
   };
   TT.exportJson = async () => {
     const g = await gather();
-    const body = { app: TT.APP, version: TT.VERSION, exported: new Date().toISOString(), device: await TT.deviceCode(), records: g.records, photos: g.photos.map(({ blob, ...m }) => m) };
-    TT.download(new Blob([JSON.stringify(body)], { type: 'application/json' }), await fname('backup', 'json'));
-    return g.records.length;
+    const body = await backupBody(g, await makeCtx(g.all), true);
+    TT.download(new Blob([JSON.stringify(body, null, 1)], { type: 'application/json' }), await fname('backup', 'json'));
+    await markExported();
+    return { records: g.records.length, photos: g.photos.length };
   };
+
+  const toB64 = (blob) => new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => { const s = String(fr.result); res(s.slice(s.indexOf(',') + 1)); };
+    fr.onerror = () => rej(fr.error);
+    fr.readAsDataURL(blob);
+  });
+  const fromB64 = (s) => {
+    try { const bin = atob(s), b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return b; } catch (e) { return null; }
+  };
+  // data.json / JSON backup: lakes, forms and counts up front; records grouped by lake, form and date. embed = photos as base64 JPEG.
+  async function backupBody(g, ctx, embed) {
+    const counts = {};
+    for (const r of g.records) {
+      const lake = TT.lakeName(r.data.lake) || 'No lake', form = TT.FORMS[r.form].short;
+      counts[lake] = counts[lake] || {};
+      counts[lake][form] = (counts[lake][form] || 0) + 1;
+    }
+    const photos = [];
+    for (const { blob, ...m } of g.photos) photos.push(embed && blob ? { ...m, jpeg_base64: await toB64(blob) } : m);
+    return {
+      app: TT.APP, version: TT.VERSION, exported: new Date().toISOString(), device: ctx.device,
+      lakes: TT.LAKE_IDS.map((id) => ({ id, code: TT.lakeCode(id), name: TT.lakeName(id), centre: TT.lakeCentre(id) })),
+      forms: TT.FORM_ORDER.map((id) => ({ id, code: TT.FORMS[id].short, title: TT.Ls(TT.FORMS[id].title, 'en') })),
+      counts, records: TT.sortRecords(g.records), photos,
+    };
+  }
+  async function markExported() {
+    const s = TT.settings || (await TT.loadSettings());
+    s.lastExport = new Date().toISOString();
+    await TT.saveSettings(s);
+  }
 
   // Complete field package: raw data (incl. personal data) + photos + Excel + GIS. Re-importable for merging.
   TT.exportPackage = async () => {
     const g = await gather();
     const ctx = await makeCtx(g.all);
     const enc = new TextEncoder();
-    const body = { app: TT.APP, version: TT.VERSION, exported: new Date().toISOString(), device: ctx.device, records: g.records, photos: g.photos.map(({ blob, ...m }) => m) };
+    const body = await backupBody(g, ctx, false);
     const feats = TT.collectFeatures(g.records, { pii: false, ctx });
     const files = [
-      { name: 'data.json', data: enc.encode(JSON.stringify(body)) },
+      { name: 'data.json', data: enc.encode(JSON.stringify(body, null, 1)) },
       { name: 'Lakes_survey_data.xlsx', data: new Uint8Array(await (await TT.buildWorkbook({ ...g, pii: true, ctx })).arrayBuffer()) },
       { name: 'gis/lakes_points.geojson', data: new Uint8Array(await TT.toGeoJSON(feats).arrayBuffer()) },
       { name: 'gis/lakes_points.kml', data: new Uint8Array(await TT.toKML(feats).arrayBuffer()) },
@@ -358,15 +590,14 @@
         'Timure Taal and Chhekmi Taal field data package (lake codes TT and CK)',
         `Exported ${body.exported} from device ${ctx.device}; ${g.records.length} records, ${g.photos.length} photos.`,
         'CONFIDENTIAL: data.json and the Excel file include respondent names/phones where given. Share only within the study team.',
-        'data.json + photos/ can be merged into another phone or laptop: open the portal > Data > Import.',
+        'data.json + photos/ can be merged into another phone or laptop: open the portal > Data > Import JSON or ZIP (or import this ZIP directly).',
         'gis/: WGS84 points (GeoJSON for QGIS, KML for Google Earth); personal identifiers removed.',
       ].join('\r\n')) },
     ];
     for (const p of g.photos) files.push({ name: `photos/${p.id}.jpg`, data: new Uint8Array(await p.blob.arrayBuffer()) });
+    for (const f of files) if (!/\.(jpg|xlsx)$/.test(f.name)) f.z = await deflate(f.data);
     TT.download(TT.zip(files), await fname('package', 'zip'));
-    const s = await TT.loadSettings();
-    s.lastExport = new Date().toISOString();
-    await TT.saveSettings(s);
+    await markExported();
     return { records: g.records.length, photos: g.photos.length };
   };
 
@@ -396,13 +627,13 @@
       else res.skipped++;
     }
     if (put.length) await TT.db.putMany('records', put);
-    if (zipFiles && Array.isArray(body.photos)) {
+    if (Array.isArray(body.photos)) {
       const have = new Set((await TT.db.all('photos')).map((p) => p.id));
       const newPhotos = [];
       for (const m of body.photos) {
         if (!m || typeof m.id !== 'string' || have.has(m.id) || !/^P-[A-Z0-9]{2}-\d+$/.test(m.id)) continue;
-        const bytes = zipFiles[`photos/${m.id}.jpg`];
-        if (!bytes) continue;
+        const bytes = zipFiles ? zipFiles[`photos/${m.id}.jpg`] : typeof m.jpeg_base64 === 'string' ? fromB64(m.jpeg_base64) : null;
+        if (!bytes || bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) continue;
         newPhotos.push({ id: m.id, record: String(m.record || ''), form: String(m.form || ''), field: String(m.field || ''), w: m.w, h: m.h, t: m.t, gps: m.gps || null, name: String(m.name || ''), size: bytes.length, caption: String(m.caption || ''), blob: new Blob([bytes], { type: 'image/jpeg' }) });
       }
       if (newPhotos.length) await TT.db.putMany('photos', newPhotos);

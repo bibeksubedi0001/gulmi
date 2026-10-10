@@ -118,9 +118,9 @@
 
       sec('data', 'Data and IDs',
         ul([
-          'Everything stays on the phone and works offline. Each evening: Data → Field package (.zip), then copy it off the phone.',
+          'Everything stays on the phone and works offline. Each evening: Data → Field package (.zip) or JSON (.json); both hold every record and photo. Copy the file off the phone.',
           'Map offline: the offline map (terrain, 20 m contours, roads, paths, streams, buildings, place names) covers both lake areas and Tamghas. Satellite tiles viewed once online are kept for offline use.',
-          'The team lead imports every phone’s package into one device to merge (newest edit wins, duplicates are skipped).',
+          'The team lead imports every phone’s JSON or package into one device to merge (newest edit wins, duplicates are skipped), then exports Excel: one sheet per form, rows grouped by lake, plus Summary and Codebook.',
           'Lake codes: TT = Timure, CK = Chhekmi. Soil samples TT-A01 / CK-A01 and feature IDs TT-IN-01 / CK-IN-01 are suggested automatically.',
           'Benchmarks BM-1, gauges SG-1, transects T-01, infiltration IF-01 (numbering restarts at each lake).',
         ])),
